@@ -1,0 +1,84 @@
+Logo de la App ( te lo mando)
+Nombre de la app:  MS Parfumerie
+
+El menú de abajo se tapa con el menú nativo de Android (hay que ajustar bien la pantalla para que el menú de la app quede mas arriba y no se sobreponga)
+
+
+EN LA SECCION Mi biblioteca:
+Junto al titulo mi biblioteca agregar entre paréntesis la cantidad de perfumes que hay cargados   EJ:  Mi Biblioteca (250)
+Junto a la barra de buscar un perfume hay un icono de filtros, cuando aprieto ahí me manda a carga masiva de Excel, eso esta mal, debe abrir los filtros para buscar un perfume.
+
+Los filtros correctos son:
+Vitrina
+Nombre
+Marca
+Reponer (Si o - )
+Calificación Personal (1-10)
+Proyección (Alta, Media, Media Baja, Baja)
+Duración (Alta, Media, Baja)
+Perfil (AHUMADO,ALICORADO,AMADERADO,AMBARADO,AMIELADO,APOLVADO,CITRICO,CUERO,CUERO FRESCO,DULCE,ESPECIADO,ESPECIADO FLORAL,FLORAL,FRESCO,FRESCO APOLVADO,FRESCO DULCE,FRESCO TABACO,LIMPIO,MARINO,MARINO MEDITERRANEO,NOCTURNO,ORIENTAL,TROPICAL,VERDE,VERDE AHUMADO) *si agrego alguno nuevo en Excel en la columna de Perfil, me lo agrega en la app
+Ropa (Forma, Casual, Ambas)
+Horario (Día, Noche, Ambas)
+Clima (Frio, Calor, Ambas)
+Playa (Si, No)
+Salidas (Si, No)
+Oficina (Si, No)
+Familiar (Si, No)
+Proveedor  *si agrego uno en el Excel en la columna de Proveedor, me lo agrega en la app
+Precio (poner filtro de rango de precios con la barrita que vaya desde $0 hasta el precio mas alto detectado en el Excel)
+Top Colección (Si o No)
+
+Entonces en mi biblioteca cuando yo aprieto el botón de filtro me deben aparecer todos esos filtros y según los que seleccione me enseña solo los de los filtros seleccionados y actualiza el numero de arriba
+Ej: selecciono solo los de noche y el resultado son 150 perfumes entonces arriba aparece Mi Biblioteca (150)  cuando elimino los filtros vuelve a aparecer Mi Biblioteca (la cantidad total)
+
+Ordenar la bilblioteca siempre por orden alfabético del NOMBRE DEL PERFUME
+
+Al ser muchos, es muy tardado hacer scroll hacia abajo, agregar una barra de scroll a la derecha con el abecedario a medida que se va desplazando (para poder hacer scroll e ir directamente a una letra)
+
+Cuando aprieto el botón + me manda a una pagina que dice Perfume No Encontrado,  ese botón es para agregar un perfume nuevo (falta la pantalla de agregar un perfume nuevo) en donde puedo agregar la información de uno por uno en vez de importarla de excel
+
+
+
+
+EN LA SECCION   Que Usar:
+No funcionan los filtros
+No me deja modificar si Dia o Noche o Ambos
+No me Deja modificar el Clima
+El horario del dia que marca es incorrecto al real
+El clima que marca es incorrecto al real
+Me debe dejar poner todos los filtros mencionados arriba
+
+Cuando le doy buscar, me manda a la biblioteca nuevamente, no me debe mandar a la biblioteca, solo me debe mostrar todos los que coinciden con los filtros que se pusieron
+El boto de Elección Aleatoria debe ser una elección aleatoria sobre los perfumes ya filtrados, no sobre toda la biblioteca
+El botón de elección aleatoria, hay que ponerlo arriba de todo, porque al estar hasta abajo es muy impráctico tener que bajar toda la lista para ver el botón.
+
+
+EN LA SECCCION Detalle de un perfume:
+Si le doy click a la foto que me la agrande para verla en pantalla completa
+Hay una etiqueta que dice Top Colección, como hago para marcar que un perfume es TOP o no??
+En información general, quitar lo que dice AÑO, no pondré el año del perfume
+Si el perfume se debe Reponer o no, no debe ir como texto de nota, debe ir como un filtro mas  REPONER:  SI o -
+El precio ponerlo con formato de $1,000  (sin centavos y con la , separando los miles)
+El botón de Abrir enlace del catalogo reemplazar el texto y que diga  LINK
+Falta agregar el numero de vitrina en el que se encuentra
+
+EN LA SECCION Editar Perfume:
+Si quiero cambiar la foto de un perfume que ya tiene foto, no me deja
+Falta agregar el numero de vitrina 
+Falta agregar si se debe reponer o no
+Falta agregar si es Perfume TOP o no
+En los filtros de momento del día y clima falta la opción AMBAS
+Falta agregar si es para Playa Si o no
+Falta agregar si es para salidas Si o no
+Falta agregar si es para oficina Si o no
+Falta agregar si es para Familiar Si o no
+Eliminar la información que dice Numero de Lote
+Eliminar lo que dice Registrar mi ubicación (no se para que es)
+Acomodar el botón de Cancelar (que quede centrada la palabra)
+El botón de importar desde Excel queda muy abajo y se tapa con el menú nativo de Android
+
+
+
+
+EN LA SECCION Importación de Inventario
+Garantizar que todo lo de arriba mencionado lo extraiga correctamente del Excel y lo acomode en el lugar correcto (cuando esté todo corregido voy a hacer pruebas para corroborar esto)
