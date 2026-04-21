@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="aura_perfume_app"
+        android:label="MS Parfumerie"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
