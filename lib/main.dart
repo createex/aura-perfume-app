@@ -4,6 +4,7 @@ import 'package:responsive_sizer/responsive_sizer.dart';
 
 import 'controller/utils/app_colors.dart';
 import 'controller/utils/app_log.dart';
+import 'controller/utils/aura_navigator_observer.dart';
 import 'controller/utils/app_pages.dart';
 import 'controller/utils/app_routes.dart';
 import 'controller/utils/app_text_styles.dart';
@@ -17,19 +18,25 @@ Future<void> main() async {
     'PerfumeImageResolver indexed raster files',
     {'count': PerfumeImageResolver.instance.indexedRasterAssetCount},
   );
+  AppLog.startup(
+    'runApp: GetMaterialApp (GetX routingCallback + NavigatorObserver for stack)',
+  );
   runApp(const AuraPerfumeApp());
 }
 
 class AuraPerfumeApp extends StatelessWidget {
   const AuraPerfumeApp({super.key});
 
+  static final _navObserver = AuraNavigatorObserver();
+
   @override
   Widget build(BuildContext context) {
     return ResponsiveSizer(
       builder: (context, orientation, screenType) {
         return GetMaterialApp(
-          title: 'Aura Perfume App',
+          title: 'MS Parfumerie',
           debugShowCheckedModeBanner: false,
+          navigatorObservers: <NavigatorObserver>[_navObserver],
           routingCallback: (r) {
             if (r == null) return;
             AppLog.routing(
