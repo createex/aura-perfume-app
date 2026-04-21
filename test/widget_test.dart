@@ -13,6 +13,6 @@ void main() {
   testWidgets('App boots and shows wordmark', (WidgetTester tester) async {
     await tester.pumpWidget(const AuraPerfumeApp());
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('AURA'), findsWidgets);
+    expect(find.text('MS Parfumerie'), findsWidgets);
   });
 }
