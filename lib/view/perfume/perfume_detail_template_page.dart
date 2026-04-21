@@ -5,7 +5,9 @@ import '../../controller/getx_controllers/home/home_nav_controller.dart';
 import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
+import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
+import '../../controller/utils/view_insets.dart';
 import '../../widgets/aura_section.dart';
 import '../../widgets/perfume_image.dart';
 import '../../widgets/rating_stars.dart';
@@ -61,11 +63,21 @@ class PerfumeDetailTemplatePage extends StatelessWidget {
             Get.back();
           },
         ),
-        title: Text('AURA', style: AppTextStyles.appWordmark),
+        title: Text(
+          AppStrings.brandWordmark,
+          style: AppTextStyles.appWordmark,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        padding: EdgeInsets.fromLTRB(
+          18,
+          8,
+          18,
+          28 + ViewInsets.bottomOverlap(context),
+        ),
         children: [
           Center(
             child: SizedBox(

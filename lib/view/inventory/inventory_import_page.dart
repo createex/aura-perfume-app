@@ -4,7 +4,9 @@ import 'package:get/get.dart';
 import '../../controller/getx_controllers/inventory/inventory_import_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
+import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
+import '../../controller/utils/view_insets.dart';
 import '../../widgets/aura_buttons.dart';
 
 class InventoryImportPage extends StatelessWidget {
@@ -25,11 +27,21 @@ class InventoryImportPage extends StatelessWidget {
             Get.back();
           },
         ),
-        title: Text('AURA', style: AppTextStyles.appWordmark),
+        title: Text(
+          AppStrings.brandWordmark,
+          style: AppTextStyles.appWordmark,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+        padding: EdgeInsets.fromLTRB(
+          18,
+          8,
+          18,
+          24 + ViewInsets.bottomOverlap(context),
+        ),
         children: [
           Text('Importación de\nInventario', style: AppTextStyles.screenTitle),
           const SizedBox(height: 8),
@@ -127,10 +139,12 @@ class InventoryImportPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         Obx(() {
+                          final busy =
+                              c.importing.value || c.exporting.value;
                           return AuraPrimaryButton(
                             label: 'Seleccionar archivo',
-                            loading: c.importing.value,
-                            onTap: c.pickAndImportExcel,
+                            loading: busy,
+                            onTap: busy ? null : c.pickAndImportExcel,
                           );
                         }),
                       ],
@@ -267,6 +281,64 @@ class InventoryImportPage extends StatelessWidget {
                           ),
                           IconButton(
                             onPressed: c.dismissSuccess,
+                            icon: const Icon(Icons.close_rounded),
+                            color: AppColors.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 22),
+                Text('Exportar catálogo', style: AppTextStyles.screenTitle),
+                const SizedBox(height: 8),
+                Text(
+                  'Genera un archivo .xlsx con todos los perfumes de la base local (hoja VITRINA). Se guarda en el directorio de documentos de la app.',
+                  style: AppTextStyles.bodyMuted,
+                ),
+                const SizedBox(height: 14),
+                Obx(() {
+                  final busy = c.exporting.value;
+                  return AuraSecondaryButton(
+                    label: busy ? 'EXPORTANDO…' : 'EXPORTAR A EXCEL (.XLSX)',
+                    onTap: busy
+                        ? () {
+                            AppLog.tap(
+                              'InventoryImport',
+                              'Export button ignored (busy)',
+                            );
+                          }
+                        : c.exportCatalogToExcel,
+                  );
+                }),
+                Obx(() {
+                  final path = c.exportSuccessPath.value;
+                  if (path == null || path.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.folder_zip_outlined,
+                              color: AppColors.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SelectableText(
+                              path,
+                              style: AppTextStyles.bodyMuted,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: c.dismissExportSuccess,
                             icon: const Icon(Icons.close_rounded),
                             color: AppColors.textSecondary,
                           ),

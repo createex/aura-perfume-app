@@ -7,6 +7,8 @@ import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_routes.dart';
+import '../../controller/utils/perfume_ui_helpers.dart';
+import '../../controller/utils/view_insets.dart';
 import '../../controller/utils/app_text_styles.dart';
 import '../../domain/perfume/perfume.dart';
 import '../../widgets/aura_buttons.dart';
@@ -31,7 +33,7 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
   final _notesHeart = TextEditingController();
   final _notesBase = TextEditingController();
   final _compra = TextEditingController();
-  final _lote = TextEditingController();
+  final _vitrina = TextEditingController();
 
   final _picker = ImagePicker();
   String? _imagePath;
@@ -39,11 +41,19 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
   Perfume? _existing;
   bool get _isCreate => _existing == null;
 
-  int _momento = 0; // 0 día 1 noche
-  int _clima = 0; // 0 cálido 1 frío
-  int _duracionIdx = 1; // 0 baja 1 media 2 alta
+  /// 0 Día, 1 Noche, 2 Ambas
+  int _momento = 0;
+  /// 0 Calor, 1 Frío, 2 Ambas
+  int _clima = 0;
+  int _duracionIdx = 1;
   double _proyeccion = 0.45;
-  bool _ubicacion = false;
+
+  bool _topCollection = false;
+  bool _needsRefill = false;
+  bool _beach = false;
+  bool _outings = false;
+  bool _office = false;
+  bool _family = false;
 
   static List<String> _splitNotes(String raw) {
     return raw
@@ -53,15 +63,134 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
         .toList(growable: false);
   }
 
+  static bool _occasionHas(Perfume p, String label) {
+    final want = label.toLowerCase();
+    for (final o in p.occasions) {
+      if (o.trim().toLowerCase() == want) return true;
+    }
+    return false;
+  }
+
+  static bool _siPlayaRaw(String? raw) {
+    final u = (raw ?? '').trim().toUpperCase();
+    return u == 'SI' || u == 'SÍ' || u == 'YES';
+  }
+
+  static bool _inferRefillFromReponer(String? reponer) {
+    final u = (reponer ?? '').trim().toUpperCase();
+    return u == 'SI' || u == 'SÍ' || u == 'YES';
+  }
+
+  static int _momentoIndexFrom(String? s) {
+    final u = (s ?? '').trim().toLowerCase();
+    if (u.contains('ambas')) return 2;
+    if (u.contains('noche')) return 1;
+    return 0;
+  }
+
+  static int _climaIndexFrom(String? s) {
+    final u = (s ?? '').trim().toLowerCase();
+    if (u.contains('ambas')) return 2;
+    if (u.contains('frío') || u.contains('frio')) return 1;
+    return 0;
+  }
+
+  static int _duracionIdxFrom(String? d) {
+    final u = (d ?? '').trim().toUpperCase();
+    if (u.contains('ALTA') && !u.contains('MEDIA')) return 2;
+    if (u.contains('BAJA')) return 0;
+    return 1;
+  }
+
+  static double _projSliderFrom(String? p) {
+    final u = (p ?? '').trim().toUpperCase();
+    if (u.contains('ALTA')) return 0.92;
+    if (u.contains('MEDIA') && u.contains('BAJA')) return 0.38;
+    if (u.contains('MEDIA')) return 0.55;
+    if (u.contains('BAJA')) return 0.22;
+    return 0.45;
+  }
+
+  String _momentoLabel() {
+    switch (_momento) {
+      case 1:
+        return 'Noche';
+      case 2:
+        return 'Ambas';
+      default:
+        return 'Día';
+    }
+  }
+
+  String _climaLabel() {
+    switch (_clima) {
+      case 1:
+        return 'Frío';
+      case 2:
+        return 'Ambas';
+      default:
+        return 'Calor';
+    }
+  }
+
+  String _duracionLabel() {
+    switch (_duracionIdx) {
+      case 0:
+        return 'Baja';
+      case 2:
+        return 'Alta';
+      default:
+        return 'Media';
+    }
+  }
+
+  String _proyeccionFromSlider() {
+    final t = _proyeccion;
+    if (t < 0.32) return 'Baja';
+    if (t < 0.44) return 'Media Baja';
+    if (t < 0.68) return 'Media';
+    return 'Alta';
+  }
+
+  List<String> _builtOccasions(Perfume base) {
+    final out = <String>{};
+    for (final o in base.occasions) {
+      final l = o.trim();
+      if (l.isEmpty) continue;
+      final u = l.toLowerCase();
+      if (u == 'playa' ||
+          u == 'salidas' ||
+          u == 'oficina' ||
+          u == 'familiar') {
+        continue;
+      }
+      out.add(l);
+    }
+    if (_beach) out.add('Playa');
+    if (_outings) out.add('Salidas');
+    if (_office) out.add('Oficina');
+    if (_family) out.add('Familiar');
+    return out.toList(growable: false);
+  }
+
   @override
   void initState() {
     super.initState();
     final id = Get.parameters['id'];
-    if (id != null && id.isNotEmpty) {
-      final c = Get.find<PerfumeController>();
-      _existing = c.byId(id);
-      final p = _existing;
-      if (p != null) {
+    final isCreate =
+        id == null || id.isEmpty || id == 'create';
+    if (isCreate) {
+      AppLog.catalog('PerfumeEdit opened (create new perfume)', {
+        'route': Get.currentRoute,
+        'paramId': id,
+      });
+      return;
+    }
+    final rid = id;
+    final c = Get.find<PerfumeController>();
+    _existing = c.byId(rid);
+    final p = _existing;
+    if (p != null) {
         AppLog.catalog(
           'PerfumeEdit opened (edit existing)',
           AppLog.perfumeSummary(p),
@@ -70,23 +199,29 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
         _name.text = p.name;
         _rating.text = p.rating.toStringAsFixed(1);
         _description.text = p.description ?? '';
-        _price.text = p.price?.toStringAsFixed(2) ?? '';
+        _price.text = formatUsdWholeNoDecimals(p.price);
+        if (_price.text == '—') _price.text = '';
         _imagePath = p.imagePath;
         _notesTop.text = p.notesTop.join(', ');
         _notesHeart.text = p.notesHeart.join(', ');
         _notesBase.text = p.notesBase.join(', ');
-        _compra.text = p.origin ?? '';
-        _lote.text = p.year ?? '';
-      } else {
-        AppLog.warning(
-          'PerfumeEdit opened with unknown id (no matching perfume)',
-          id,
-        );
-      }
+        _compra.text = p.supplierOrOrigin ?? '';
+        _vitrina.text = p.vitrina ?? '';
+        _momento = _momentoIndexFrom(p.diaNoche);
+        _clima = _climaIndexFrom(p.frioCalor);
+        _duracionIdx = _duracionIdxFrom(p.duracion);
+        _proyeccion = _projSliderFrom(p.proyeccion);
+        _topCollection = p.topCollection == true;
+        _needsRefill = p.refillNeeded ?? _inferRefillFromReponer(p.reponer);
+        _beach = p.beach ?? (_siPlayaRaw(p.playaRaw) || _occasionHas(p, 'Playa'));
+        _outings = p.outings ?? _occasionHas(p, 'Salidas');
+        _office = p.office ?? _occasionHas(p, 'Oficina');
+        _family = p.family ?? _occasionHas(p, 'Familiar');
     } else {
-      AppLog.catalog('PerfumeEdit opened (create new perfume)', {
-        'route': Get.currentRoute,
-      });
+      AppLog.warning(
+        'PerfumeEdit opened with unknown id (no matching perfume)',
+        rid,
+      );
     }
   }
 
@@ -101,13 +236,15 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
     _notesHeart.dispose();
     _notesBase.dispose();
     _compra.dispose();
-    _lote.dispose();
+    _vitrina.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = Get.find<PerfumeController>();
+    final bottomPad =
+        ViewInsets.bottomOverlap(context) + MediaQuery.textScalerOf(context).scale(8);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -151,7 +288,7 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+        padding: EdgeInsets.fromLTRB(18, 10, 18, 32 + bottomPad),
         children: [
           Text(
             'IDENTIDAD',
@@ -161,55 +298,65 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
           AuraSection(
             title: 'IMAGEN',
             child: Center(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(26),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Column(
-                      children: [
-                        PerfumeImage(path: _imagePath, size: 200),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Cargar fotografía',
-                          style: AppTextStyles.caption,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    AppLog.tap('PerfumeEdit', 'Open image picker (tap image)');
+                    _pickImageSheet();
+                  },
+                  borderRadius: BorderRadius.circular(26),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(color: AppColors.border),
                         ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: InkWell(
-                      onTap: () {
-                        AppLog.tap('PerfumeEdit', 'Open image picker sheet');
-                        _pickImageSheet();
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(
-                          color: AppColors.surface,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.shadow,
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
+                        child: Column(
+                          children: [
+                            PerfumeImage(path: _imagePath, size: 200),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Toca para cambiar la fotografía',
+                              style: AppTextStyles.caption,
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.photo_camera_rounded,
-                            color: AppColors.primary),
                       ),
-                    ),
+                      Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: InkWell(
+                          onTap: () {
+                            AppLog.tap('PerfumeEdit', 'Open image picker sheet');
+                            _pickImageSheet();
+                          },
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: const BoxDecoration(
+                              color: AppColors.surface,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.shadow,
+                                  blurRadius: 18,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.photo_camera_rounded,
+                                color: AppColors.primary),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -233,10 +380,12 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                   children: [
                     Expanded(
                       child: AuraField(
-                        label: 'Precio',
+                        label: 'Precio (USD, sin decimales)',
                         controller: _price,
                         keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
+                          decimal: false,
+                          signed: false,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -249,6 +398,71 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          AuraSection(
+            title: 'CATÁLOGO / VITRINA',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AuraField(
+                  label: 'Vitrina',
+                  controller: _vitrina,
+                ),
+                const SizedBox(height: 12),
+                AuraField(
+                  label: 'Proveedor',
+                  controller: _compra,
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Top colección', style: AppTextStyles.body),
+                  value: _topCollection,
+                  onChanged: (v) => setState(() => _topCollection = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Reponer', style: AppTextStyles.body),
+                  subtitle: Text('Sí = marcar para reabastecer',
+                      style: AppTextStyles.caption),
+                  value: _needsRefill,
+                  onChanged: (v) => setState(() => _needsRefill = v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          AuraSection(
+            title: 'OCASIÓN (sí / no)',
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Playa', style: AppTextStyles.body),
+                  value: _beach,
+                  onChanged: (v) => setState(() => _beach = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Salidas', style: AppTextStyles.body),
+                  value: _outings,
+                  onChanged: (v) => setState(() => _outings = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Oficina', style: AppTextStyles.body),
+                  value: _office,
+                  onChanged: (v) => setState(() => _office = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Familiar', style: AppTextStyles.body),
+                  value: _family,
+                  onChanged: (v) => setState(() => _family = v),
                 ),
               ],
             ),
@@ -300,6 +514,7 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                   segments: const [
                     ButtonSegment(value: 0, label: Text('Día')),
                     ButtonSegment(value: 1, label: Text('Noche')),
+                    ButtonSegment(value: 2, label: Text('Ambas')),
                   ],
                   selected: {_momento},
                   onSelectionChanged: (s) =>
@@ -310,8 +525,9 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                 const SizedBox(height: 8),
                 SegmentedButton<int>(
                   segments: const [
-                    ButtonSegment(value: 0, label: Text('Cálido')),
+                    ButtonSegment(value: 0, label: Text('Calor')),
                     ButtonSegment(value: 1, label: Text('Frío')),
+                    ButtonSegment(value: 2, label: Text('Ambas')),
                   ],
                   selected: {_clima},
                   onSelectionChanged: (s) => setState(() => _clima = s.first),
@@ -354,51 +570,36 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          AuraSection(
-            title: 'LOGÍSTICA',
-            child: Column(
-              children: [
-                AuraField(
-                  label: 'Dónde se compró',
-                  controller: _compra,
-                ),
-                const SizedBox(height: 12),
-                AuraField(
-                  label: 'Número de lote',
-                  controller: _lote,
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Registrar mi ubicación',
-                      style: AppTextStyles.body),
-                  value: _ubicacion,
-                  thumbColor: WidgetStateProperty.resolveWith(
-                    (s) => s.contains(WidgetState.selected)
-                        ? AppColors.primary
-                        : null,
-                  ),
-                  onChanged: (v) => setState(() => _ubicacion = v),
-                ),
-              ],
+          const SizedBox(height: 18),
+          Padding(
+            padding: EdgeInsets.only(bottom: 8 + bottomPad * 0.35),
+            child: AuraSecondaryButton(
+              label: 'Importar desde Excel',
+              onTap: () {
+                AppLog.navigate(
+                  'OPEN',
+                  AppRoutes.inventoryImport,
+                  {'from': 'PerfumeEdit (above actions)'},
+                );
+                Get.toNamed(AppRoutes.inventoryImport);
+              },
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: AuraSecondaryButton(
                   label: 'Cancelar',
                   onTap: () {
-                    AppLog.tap('PerfumeEdit', 'Cancel (discard changes prompt none)');
+                    AppLog.tap('PerfumeEdit', 'Cancel');
                     Get.back();
                   },
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                flex: 2,
                 child: AuraPrimaryButton(
                   label: 'Guardar perfume',
                   onTap: () async {
@@ -416,8 +617,7 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                     final rating = double.tryParse(
                             _rating.text.trim().replaceAll(',', '.')) ??
                         0;
-                    final price = double.tryParse(
-                        _price.text.trim().replaceAll(',', '.'));
+                    final price = parseUsdWholeInput(_price.text);
 
                     final base = _existing ??
                         Perfume(
@@ -441,9 +641,26 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
                       origin: _compra.text.trim().isEmpty
                           ? null
                           : _compra.text.trim(),
-                      year: _lote.text.trim().isEmpty
+                      supplier: _compra.text.trim().isEmpty
                           ? null
-                          : _lote.text.trim(),
+                          : _compra.text.trim(),
+                      clearYear: true,
+                      vitrina: _vitrina.text.trim().isEmpty
+                          ? null
+                          : _vitrina.text.trim(),
+                      diaNoche: _momentoLabel(),
+                      frioCalor: _climaLabel(),
+                      duracion: _duracionLabel(),
+                      proyeccion: _proyeccionFromSlider(),
+                      topCollection: _topCollection,
+                      refillNeeded: _needsRefill,
+                      reponer: _needsRefill ? 'SI' : '-',
+                      beach: _beach,
+                      outings: _outings,
+                      office: _office,
+                      family: _family,
+                      playaRaw: _beach ? 'SI' : '-',
+                      occasions: _builtOccasions(base),
                     );
                     AppLog.catalog(
                       'PerfumeEdit saving perfume',
@@ -469,18 +686,7 @@ class _PerfumeEditPageState extends State<PerfumeEditPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          AuraSecondaryButton(
-            label: 'Importar desde Excel',
-            onTap: () {
-              AppLog.navigate(
-                'OPEN',
-                AppRoutes.inventoryImport,
-                {'from': 'PerfumeEdit footer'},
-              );
-              Get.toNamed(AppRoutes.inventoryImport);
-            },
-          ),
+          SizedBox(height: 16 + bottomPad * 0.5),
         ],
       ),
     );

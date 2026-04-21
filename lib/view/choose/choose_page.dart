@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../controller/getx_controllers/home/home_nav_controller.dart';
 import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_routes.dart';
 import '../../controller/utils/app_text_styles.dart';
+import '../../domain/library/library_catalog_filter.dart';
+import '../library/library_filters_sheet.dart';
 import '../../widgets/aura_buttons.dart';
 import '../../widgets/aura_choice_chip.dart';
-import '../../widgets/aura_pill.dart';
 import '../../widgets/perfume_card.dart';
 
 class ChoosePage extends StatefulWidget {
@@ -20,262 +20,363 @@ class ChoosePage extends StatefulWidget {
 }
 
 class _ChoosePageState extends State<ChoosePage> {
-  final _scroll = ScrollController();
-
-  static double _gridHeight(BuildContext context, int count) {
-    if (count == 0) return 120;
-    const cols = 2;
-    const spacing = 14.0;
-    const aspect = 0.78;
-    final w = MediaQuery.sizeOf(context).width - 36 - (cols - 1) * spacing;
-    final cellW = w / cols;
-    final cellH = cellW / aspect;
-    final rows = (count / cols).ceil();
-    return rows * cellH + (rows - 1) * spacing;
-  }
+  late final TextEditingController _searchQ;
+  Worker? _chooseQueryWorker;
 
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_onScroll);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _fillChooseIfUnderscroll());
-  }
-
-  Future<void> _fillChooseIfUnderscroll() async {
-    if (!mounted) return;
+    AppLog.startup('ChoosePage initState (Qué usar tab body)');
     final c = Get.find<PerfumeController>();
-    for (var i = 0; i < 30 && mounted; i++) {
-      if (!_scroll.hasClients) return;
-      if (_scroll.position.maxScrollExtent > 80) return;
-      if (!c.chooseCanLoadMore) return;
-      await c.loadMoreChoose();
-      await Future<void>.delayed(Duration.zero);
-    }
+    _searchQ = TextEditingController(text: c.chooseQuery.value);
+    _searchQ.addListener(_onSearchChanged);
+    _chooseQueryWorker = ever<String>(c.chooseQuery, (q) {
+      if (_searchQ.text != q) {
+        _searchQ.text = q;
+        _searchQ.selection = TextSelection.collapsed(offset: q.length.clamp(0, q.length));
+      }
+    });
   }
 
-  void _onScroll() {
-    if (!_scroll.hasClients) return;
-    final pos = _scroll.position;
-    if (!pos.hasViewportDimension) return;
-    if (pos.pixels >= pos.maxScrollExtent - 160) {
-      final c = Get.find<PerfumeController>();
-      if (c.chooseCanLoadMore) {
-        AppLog.action(
-          'Choose tab scroll near end → load more grid rows',
-          {
-            'visibleAfter': (c.chooseVisibleCount.value +
-                    PerfumeController.pageSize)
-                .clamp(0, c.perfumes.length),
-            'totalPerfumes': c.perfumes.length,
-          },
-        );
-      }
-      c.loadMoreChoose();
+  void _onSearchChanged() {
+    final c = Get.find<PerfumeController>();
+    final t = _searchQ.text;
+    if (c.chooseQuery.value != t) {
+      c.chooseQuery.value = t;
+      AppLog.librarySearchQueryChanged('choose:$t');
     }
   }
 
   @override
   void dispose() {
-    _scroll.removeListener(_onScroll);
-    _scroll.dispose();
+    _chooseQueryWorker?.dispose();
+    _searchQ.removeListener(_onSearchChanged);
+    _searchQ.dispose();
     super.dispose();
+  }
+
+  static void _setTime(PerfumeController c, Set<String> next) {
+    c.setChooseFilter(c.chooseFilter.value.copyWith(timeOfDay: next));
+  }
+
+  static void _setWeather(PerfumeController c, Set<String> next) {
+    c.setChooseFilter(c.chooseFilter.value.copyWith(weather: next));
+  }
+
+  static void _toggleOffice(PerfumeController c) {
+    final f = c.chooseFilter.value;
+    final next = f.office == TriStateFilter.yes ? TriStateFilter.any : TriStateFilter.yes;
+    c.setChooseFilter(f.copyWith(office: next));
+  }
+
+  static void _toggleOutings(PerfumeController c) {
+    final f = c.chooseFilter.value;
+    final next =
+        f.outings == TriStateFilter.yes ? TriStateFilter.any : TriStateFilter.yes;
+    c.setChooseFilter(f.copyWith(outings: next));
+  }
+
+  static void _toggleBeach(PerfumeController c) {
+    final f = c.chooseFilter.value;
+    final next = f.beach == TriStateFilter.yes ? TriStateFilter.any : TriStateFilter.yes;
+    c.setChooseFilter(f.copyWith(beach: next));
+  }
+
+  static void _toggleFamily(PerfumeController c) {
+    final f = c.chooseFilter.value;
+    final next =
+        f.family == TriStateFilter.yes ? TriStateFilter.any : TriStateFilter.yes;
+    c.setChooseFilter(f.copyWith(family: next));
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = Get.find<PerfumeController>();
     return SafeArea(
       top: false,
-      child: CustomScrollView(
-        controller: _scroll,
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                Text('Recomendaciones\nPara ti', style: AppTextStyles.screenTitle),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(26),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1A0B1634),
-                        blurRadius: 22,
-                        offset: Offset(0, 12),
-                      ),
-                    ],
+      child: Obx(() {
+        final items = c.chooseList;
+        final f = c.chooseFilter.value;
+        final filterActive = f.isActive(c.catalogMaxPrice) ||
+            c.chooseQuery.value.trim().isNotEmpty;
+
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(18, 6, 18, 0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Text('Qué usar', style: AppTextStyles.screenTitle),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(26),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1A0B1634),
+                          blurRadius: 22,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('HORARIO', style: AppTextStyles.caption),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AuraChoiceChip(
+                              text: 'Cualquiera',
+                              selected: f.timeOfDay.isEmpty,
+                              onTap: () => _setTime(c, {}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Día',
+                              selected: f.timeOfDay.contains('Día'),
+                              onTap: () => _setTime(c, {'Día'}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Noche',
+                              selected: f.timeOfDay.contains('Noche'),
+                              onTap: () => _setTime(c, {'Noche'}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Ambas',
+                              selected: f.timeOfDay.contains('Ambas'),
+                              onTap: () => _setTime(c, {'Ambas'}),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text('CLIMA', style: AppTextStyles.caption),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AuraChoiceChip(
+                              text: 'Cualquiera',
+                              selected: f.weather.isEmpty,
+                              onTap: () => _setWeather(c, {}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Frío',
+                              selected: f.weather.contains('Frío'),
+                              onTap: () => _setWeather(c, {'Frío'}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Calor',
+                              selected: f.weather.contains('Calor'),
+                              onTap: () => _setWeather(c, {'Calor'}),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Ambas',
+                              selected: f.weather.contains('Ambas'),
+                              onTap: () => _setWeather(c, {'Ambas'}),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text('OCASIÓN', style: AppTextStyles.caption),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AuraChoiceChip(
+                              text: 'Oficina',
+                              selected: f.office == TriStateFilter.yes,
+                              onTap: () => _toggleOffice(c),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Salidas',
+                              selected: f.outings == TriStateFilter.yes,
+                              onTap: () => _toggleOutings(c),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Playa',
+                              selected: f.beach == TriStateFilter.yes,
+                              onTap: () => _toggleBeach(c),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Familia',
+                              selected: f.family == TriStateFilter.yes,
+                              onTap: () => _toggleFamily(c),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text('ESTILO (ropa)', style: AppTextStyles.caption),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            AuraChoiceChip(
+                              text: 'Cualquiera',
+                              selected: f.clothing.isEmpty,
+                              onTap: () => c.setChooseFilter(
+                                c.chooseFilter.value.copyWith(clothing: {}),
+                              ),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Casual',
+                              selected: f.clothing.contains('Casual'),
+                              onTap: () => c.setChooseFilter(
+                                c.chooseFilter.value.copyWith(clothing: {'Casual'}),
+                              ),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Formal',
+                              selected: f.clothing.contains('Formal'),
+                              onTap: () => c.setChooseFilter(
+                                c.chooseFilter.value.copyWith(clothing: {'Formal'}),
+                              ),
+                            ),
+                            AuraChoiceChip(
+                              text: 'Ambas',
+                              selected: f.clothing.contains('Ambas'),
+                              onTap: () => c.setChooseFilter(
+                                c.chooseFilter.value.copyWith(clothing: {'Ambas'}),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Text('BUSCAR EN RESULTADOS', style: AppTextStyles.caption),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _searchQ,
+                          decoration: InputDecoration(
+                            hintText: 'Nombre o marca…',
+                            hintStyle: AppTextStyles.bodyMuted,
+                            filled: true,
+                            fillColor: AppColors.surfaceMuted,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: const BorderSide(color: AppColors.border),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: const BorderSide(color: AppColors.border),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        AuraSecondaryButton(
+                          label: 'Filtros completos',
+                          onTap: () {
+                            AppLog.tap('Choose', 'Open full filter sheet');
+                            openChooseFiltersSheet();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: const [
-                          AuraPill(
-                              icon: Icons.wb_sunny_outlined, text: 'DÍA - 14:35'),
-                          AuraPill(
-                              icon: Icons.thermostat_outlined,
-                              text: 'CALOR - 32°C'),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text('OCASIÓN', style: AppTextStyles.caption),
-                      const SizedBox(height: 10),
-                      const Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          AuraChoiceChip(text: 'Oficina', selected: true),
-                          AuraChoiceChip(text: 'Salidas'),
-                          AuraChoiceChip(text: 'Playa'),
-                          AuraChoiceChip(text: 'Familia'),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text('ESTILO', style: AppTextStyles.caption),
-                      const SizedBox(height: 10),
-                      const Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          AuraChoiceChip(text: 'Casual', selected: true),
-                          AuraChoiceChip(text: 'Formal'),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      AuraPrimaryButton(
-                        label: 'Buscar',
-                        onTap: () {
-                          AppLog.tap(
-                            'Choose',
-                            'Recommendations card: Buscar (go to Library tab + snackbar)',
-                          );
-                          Get.find<HomeNavController>().setTab(0);
-                          Get.snackbar(
-                            'Biblioteca',
-                            'Usa el buscador en Mi Biblioteca para filtrar tu catálogo.',
-                            snackPosition: SnackPosition.BOTTOM,
-                          );
+                  const SizedBox(height: 16),
+                  AuraSecondaryButton(
+                    label: 'Elección aleatoria',
+                    onTap: () {
+                      AppLog.navigate(
+                        'OPEN',
+                        AppRoutes.recommendationSpotlight,
+                        {
+                          'from':
+                              'Choose tab → Elección aleatoria (pool=chooseList)',
                         },
-                      ),
-                    ],
+                      );
+                      Get.toNamed(AppRoutes.recommendationSpotlight);
+                    },
                   ),
-                ),
-                const SizedBox(height: 20),
-                Obx(() {
-                  final n = Get.find<PerfumeController>().perfumes.length;
-                  return Row(
+                  const SizedBox(height: 14),
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Expanded(
                         child: Text(
-                          'Recomendaciones\nPara ti',
+                          'Coincidencias',
                           style: AppTextStyles.perfumeName.copyWith(fontSize: 20),
                         ),
                       ),
                       Text(
-                        '$n\nFRAGANCIAS ENCONTRADAS',
+                        '${items.length}\nFRAGANCIAS',
                         textAlign: TextAlign.right,
-                        style: AppTextStyles.caption,
+                        style: AppTextStyles.caption.copyWith(
+                          color: filterActive
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                        ),
                       ),
                     ],
-                  );
-                }),
-                const SizedBox(height: 12),
-              ]),
+                  ),
+                  const SizedBox(height: 12),
+                ]),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Obx(() {
-              final c = Get.find<PerfumeController>();
-              final items = c.chooseSlice;
-              final loadingMore = c.chooseLoadingMore.value;
-
-              if (items.isEmpty) {
-                return Padding(
+            if (c.perfumes.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Text(
                     'Sin perfumes en la biblioteca.',
                     style: AppTextStyles.bodyMuted,
                   ),
-                );
-              }
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: _gridHeight(context, items.length),
-                      child: GridView.builder(
-                        padding: EdgeInsets.zero,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 14,
-                          mainAxisSpacing: 14,
-                          childAspectRatio: 0.78,
-                        ),
-                        itemCount: items.length,
-                        itemBuilder: (ctx, i) {
-                          final p = items[i];
-                          return PerfumeCard(
-                            perfume: p,
-                            variant: PerfumeCardVariant.recommendationTile,
-                            onTap: () {
-                              final route = AppRoutes.perfumeDetail
-                                  .replaceFirst(':id', p.id);
-                              AppLog.navigate(
-                                'OPEN full detail (from Choose grid)',
-                                route,
-                                AppLog.perfumeSummary(p),
-                              );
-                              Get.toNamed(route);
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                    if (loadingMore)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
-              );
-            }),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-            sliver: SliverToBoxAdapter(
-              child: AuraSecondaryButton(
-                label: 'Elección aleatoria',
-                onTap: () {
-                  AppLog.navigate(
-                    'OPEN',
-                    AppRoutes.recommendationSpotlight,
-                    {'from': 'Choose tab → Elección aleatoria'},
-                  );
-                  Get.toNamed(AppRoutes.recommendationSpotlight);
-                },
+              )
+            else if (items.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Text(
+                    'Ninguna fragancia coincide. Afloja filtros o busca otra cosa.',
+                    style: AppTextStyles.bodyMuted,
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 0.78,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final p = items[i];
+                      return PerfumeCard(
+                        perfume: p,
+                        variant: PerfumeCardVariant.recommendationTile,
+                        onTap: () {
+                          final route =
+                              AppRoutes.perfumeDetail.replaceFirst(':id', p.id);
+                          AppLog.navigate(
+                            'OPEN full detail (from Choose grid)',
+                            route,
+                            AppLog.perfumeSummary(p),
+                          );
+                          Get.toNamed(route);
+                        },
+                      );
+                    },
+                    childCount: items.length,
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
     );
   }
 }

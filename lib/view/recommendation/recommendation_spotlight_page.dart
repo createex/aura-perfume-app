@@ -7,7 +7,9 @@ import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_routes.dart';
+import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
+import '../../controller/utils/view_insets.dart';
 import '../../domain/perfume/perfume.dart';
 import '../../widgets/aura_buttons.dart';
 import '../../widgets/perfume_image.dart';
@@ -28,24 +30,30 @@ class _RecommendationSpotlightPageState
   @override
   void initState() {
     super.initState();
+    AppLog.startup('RecommendationSpotlightPage initState');
     _pick();
   }
 
   void _pick() {
     final c = Get.find<PerfumeController>();
-    final list = c.perfumes.toList(growable: false);
+    final list = c.chooseList;
     if (list.isEmpty) {
       AppLog.catalog(
-        'RecommendationSpotlight: random pick skipped (empty library)',
-        {'total': 0},
+        'RecommendationSpotlight: random pick skipped (empty chooseList)',
+        {'poolSize': 0},
       );
       setState(() => _p = null);
       return;
     }
-    final next = list[Random().nextInt(list.length)];
+    final idx = Random().nextInt(list.length);
+    final next = list[idx];
     AppLog.catalog(
       'RecommendationSpotlight: random perfume selected',
-      AppLog.perfumeSummary(next),
+      {
+        ...AppLog.perfumeSummary(next),
+        'poolSize': list.length,
+        'randomIndex': idx,
+      },
     );
     setState(() => _p = next);
   }
@@ -64,18 +72,28 @@ class _RecommendationSpotlightPageState
             Get.back();
           },
         ),
-        title: Text('AURA', style: AppTextStyles.appWordmark),
+        title: Text(
+          AppStrings.brandWordmark,
+          style: AppTextStyles.appWordmark,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         centerTitle: true,
       ),
       body: p == null
           ? Center(
               child: Text(
-                'No hay perfumes en la biblioteca.',
+                'No hay coincidencias con los filtros actuales en Qué usar.',
                 style: AppTextStyles.bodyMuted,
               ),
             )
           : ListView(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+              padding: EdgeInsets.fromLTRB(
+                18,
+                8,
+                18,
+                28 + ViewInsets.bottomOverlap(context),
+              ),
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(28),

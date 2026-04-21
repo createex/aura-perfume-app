@@ -5,6 +5,7 @@ import '../../controller/getx_controllers/home/home_nav_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_routes.dart';
+import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
 import '../../view/choose/choose_page.dart';
 import '../../view/library/library_page.dart';
@@ -50,7 +51,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text('AURA', style: AppTextStyles.screenTitle),
+                child: Text(AppStrings.brandWordmark, style: AppTextStyles.screenTitle),
               ),
               const Divider(),
               ListTile(
@@ -93,18 +94,6 @@ class _HomePageState extends State<HomePage> {
           AppLog.tap('Home', 'App bar: open menu (drawer)');
           _scaffoldKey.currentState?.openDrawer();
         },
-        onSearch: () {
-          AppLog.tap(
-            'Home',
-            'App bar: search hint (switch to Library + snackbar)',
-          );
-          nav.setTab(0);
-          Get.snackbar(
-            'Buscar',
-            'Escribe en el campo «Buscar fragancia» en Mi Biblioteca.',
-            snackPosition: SnackPosition.BOTTOM,
-          );
-        },
       ),
       body: Obx(() {
         final idx = nav.tabIndex.value;
@@ -121,7 +110,12 @@ class _HomePageState extends State<HomePage> {
         elevation: 10,
         shape: const CircleBorder(),
         onPressed: () {
-          AppLog.navigate('OPEN', AppRoutes.perfumeCreate, {'from': 'Home FAB'});
+          AppLog.tap('Home', 'FAB + (create perfume)');
+          AppLog.navigate(
+            'OPEN',
+            AppRoutes.perfumeCreate,
+            {'from': 'Home FAB'},
+          );
           Get.toNamed(AppRoutes.perfumeCreate);
         },
         child: Ink(
@@ -136,8 +130,14 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      bottomNavigationBar: AuraBottomNav(
-        onTap: (i) => nav.setTab(i),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        minimum: EdgeInsets.zero,
+        child: AuraBottomNav(
+          onTap: (i) => nav.setTab(i),
+        ),
       ),
     );
   }
