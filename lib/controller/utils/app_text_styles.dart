@@ -7,7 +7,7 @@ import 'app_colors.dart';
 class AppTextStyles {
   AppTextStyles._();
 
-  // Manrope for headings (AppBar "AURA", page titles, perfume names)
+  // Manrope for headings (AppBar wordmark, page titles, perfume names)
   static TextStyle _manrope({
     required double size,
     required FontWeight weight,

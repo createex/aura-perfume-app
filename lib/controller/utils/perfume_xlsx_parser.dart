@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart';
 
 import '../../domain/perfume/perfume.dart';
+import 'app_log.dart';
 
 /// Reads the bundled inventory layout (sheets [VITRINA], [CAJON]) and optional
 /// English-header imports used by [InventoryImportController].
@@ -10,12 +11,24 @@ class PerfumeXlsxParser {
   PerfumeXlsxParser._();
 
   static List<Perfume> parseBytes(Uint8List bytes) {
-    return parseWorkbook(Excel.decodeBytes(bytes));
+    AppLog.catalog(
+      'PerfumeXlsxParser.parseBytes: decoding workbook',
+      {'byteLength': bytes.length},
+    );
+    final excel = Excel.decodeBytes(bytes);
+    return parseWorkbook(excel);
   }
 
   static List<Perfume> parseWorkbook(Excel excel) {
     final keys = excel.tables.keys.toList(growable: false)
       ..sort(_sheetRank);
+    AppLog.catalog(
+      'PerfumeXlsxParser.parseWorkbook: sheets discovered',
+      {
+        'sheetCount': keys.length,
+        'sheetNames': keys.join(', '),
+      },
+    );
     final byKey = <String, Perfume>{};
 
     for (final sheetName in keys) {
@@ -39,6 +52,13 @@ class PerfumeXlsxParser {
       }
     }
 
+    AppLog.catalog(
+      'PerfumeXlsxParser.parseWorkbook: complete',
+      {
+        'uniquePerfumeCount': byKey.length,
+        'sheetCount': keys.length,
+      },
+    );
     return byKey.values.toList(growable: false);
   }
 
@@ -138,14 +158,15 @@ class PerfumeXlsxParser {
     final proveedor = _cell(row, _col(h, ['proveedor']));
     final link = _cell(row, _col(h, ['link']));
     final vitrina = _cell(row, _col(h, ['vitrina']));
-
-    final descBuf = StringBuffer();
-    if (reponer.isNotEmpty && reponer != '-') {
-      descBuf.writeln('Reponer: $reponer');
-    }
-    if (link.isNotEmpty) {
-      descBuf.writeln('Enlace: $link');
-    }
+    final topRaw = _cell(
+      row,
+      _col(h, [
+        'top coleccion',
+        'top colección',
+        'top collection',
+        'top',
+      ]),
+    );
 
     final occasions = <String>[
       if (_isSi(salidas)) 'Salidas',
@@ -159,15 +180,22 @@ class PerfumeXlsxParser {
       if (ropa.isNotEmpty && ropa != '-') ropa,
     ];
 
+    bool? tri(String v) {
+      if (v.isEmpty || v == '-') return null;
+      return _isSi(v);
+    }
+
     return Perfume(
       id: _stableId(sheetName, rowIndex, brand, name),
       brand: brand,
       name: name,
       rating: rating,
-      description:
-          descBuf.toString().trim().isEmpty ? null : descBuf.toString().trim(),
+      description: null,
       price: price,
       origin: proveedor.isEmpty ? null : proveedor,
+      supplier: proveedor.isEmpty ? null : proveedor,
+      profile: _field(perfil),
+      clothing: _field(ropa),
       occasions: occasions,
       styles: styles,
       vitrina: _field(vitrina),
@@ -178,6 +206,12 @@ class PerfumeXlsxParser {
       frioCalor: _field(frioCalor),
       playaRaw: _field(playa),
       link: link.isEmpty ? null : link,
+      topCollection: topRaw.isEmpty ? null : _isSi(topRaw),
+      beach: tri(playa),
+      outings: tri(salidas),
+      office: tri(oficina),
+      family: tri(familiar),
+      refillNeeded: tri(reponer),
     );
   }
 

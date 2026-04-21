@@ -15,16 +15,20 @@ class InventoryImportController extends GetxController {
   final PerfumeRepository _repo;
 
   final importing = false.obs;
+  final exporting = false.obs;
   final progress = 0.0.obs;
   final status = ''.obs;
   final error = RxnString();
   final successMessage = RxnString();
+  final exportSuccessPath = RxnString();
 
   Future<void> pickAndImportExcel() async {
-    AppLog.action('InventoryImport: user tapped Select file (.xlsx)');
+    AppLog.tap('InventoryImport', 'Select file (.xlsx)');
     error.value = null;
     successMessage.value = null;
+    exportSuccessPath.value = null;
     status.value = 'Selecciona el archivo Excel…';
+    AppLog.io('InventoryImport: opening file picker');
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['xlsx'],
@@ -41,6 +45,7 @@ class InventoryImportController extends GetxController {
       {
         'name': picked.name,
         'sizeBytes': bytes?.length ?? -1,
+        'path': picked.path ?? '(in-memory only)',
       },
     );
     if (bytes == null) {
@@ -54,18 +59,61 @@ class InventoryImportController extends GetxController {
     await importFromXlsxBytes(bytes);
   }
 
+  Future<void> exportCatalogToExcel() async {
+    AppLog.tap('InventoryImport', 'Export catalog to .xlsx (app documents)');
+    if (exporting.value) {
+      AppLog.action('InventoryExport: ignored (already running)');
+      return;
+    }
+    error.value = null;
+    exportSuccessPath.value = null;
+    exporting.value = true;
+    status.value = 'Generando Excel…';
+    try {
+      AppLog.io('InventoryExport: requesting repository export');
+      final path = await _repo.exportToDocumentsDirectory();
+      exportSuccessPath.value = path;
+      status.value = '';
+      AppLog.io('InventoryExport: success', {'path': path});
+      Get.snackbar(
+        'Exportación',
+        'Archivo guardado en documentos de la app:\n$path',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+      );
+    } catch (e, st) {
+      AppLog.warning('InventoryExport failed', '$e\n$st');
+      error.value = 'No se pudo exportar: $e';
+      status.value = '';
+    } finally {
+      exporting.value = false;
+      AppLog.action('InventoryExport: finished');
+    }
+  }
+
   void dismissSuccess() {
     AppLog.tap('InventoryImport', 'Dismiss success message');
     successMessage.value = null;
   }
 
+  void dismissExportSuccess() {
+    AppLog.tap('InventoryImport', 'Dismiss export path message');
+    exportSuccessPath.value = null;
+  }
+
   Future<void> _refreshCatalog() async {
     if (Get.isRegistered<PerfumeController>()) {
+      AppLog.catalog('InventoryImport: refreshing PerfumeController catalog');
       await Get.find<PerfumeController>().refreshPerfumes();
+    } else {
+      AppLog.warning(
+        'InventoryImport: PerfumeController not registered, skip refresh',
+      );
     }
   }
 
   Future<void> importFromXlsxBytes(Uint8List bytes) async {
+    final t0 = DateTime.now();
     AppLog.catalog(
       'InventoryImport: importFromXlsxBytes started',
       {'byteLength': bytes.length},
@@ -75,18 +123,32 @@ class InventoryImportController extends GetxController {
     status.value = 'Leyendo archivo…';
     error.value = null;
     successMessage.value = null;
+    exportSuccessPath.value = null;
 
     try {
+      AppLog.catalog('InventoryImport: loading existing catalog from DB');
       final existing = await _repo.getAll();
+      AppLog.catalog(
+        'InventoryImport: existing catalog loaded',
+        {'existingCount': existing.length},
+      );
       final existingKeys = existing
           .map((p) => _keyOf(p.brand, p.name))
           .where((k) => k.isNotEmpty)
           .toSet();
 
+      AppLog.catalog('InventoryImport: decoding Excel with package:excel');
       final excel = Excel.decodeBytes(bytes);
       if (excel.tables.isEmpty) {
         throw Exception('El archivo no contiene hojas.');
       }
+      AppLog.catalog(
+        'InventoryImport: workbook decoded',
+        {
+          'tableCount': excel.tables.length,
+          'tableKeys': excel.tables.keys.join(', '),
+        },
+      );
 
       final parsed = PerfumeXlsxParser.parseWorkbook(excel);
       if (parsed.isNotEmpty) {
@@ -108,31 +170,63 @@ class InventoryImportController extends GetxController {
         }
 
         final newFound = toInsert.length;
-        var added = 0;
-        for (final perfume in toInsert) {
-          await _repo.upsert(perfume);
-          added++;
-          progress.value = totalFound == 0 ? 1 : added / totalFound;
-          status.value = 'Importing perfumes…';
+        AppLog.catalog(
+          'InventoryImport: VITRINA-style parse + duplicate filter',
+          {
+            'parsedRows': totalFound,
+            'duplicates': duplicates,
+            'newRows': newFound,
+          },
+        );
+
+        if (toInsert.isEmpty) {
+          status.value = '';
+          final msg =
+              'Records found: $totalFound • Duplicates: $duplicates • New: 0 • Added: 0';
+          successMessage.value = msg;
+          AppLog.catalog('InventoryImport: nothing to insert after dedupe');
+          Get.snackbar('Import summary', msg, snackPosition: SnackPosition.BOTTOM);
+          await _refreshCatalog();
+          return;
         }
 
+        status.value = 'Guardando en base de datos…';
+        progress.value = 0.35;
+        final merged = [...existing, ...toInsert];
+        AppLog.catalog(
+          'InventoryImport: bulk saveFullCatalog',
+          {
+            'before': existing.length,
+            'inserting': toInsert.length,
+            'after': merged.length,
+          },
+        );
+        await _repo.saveFullCatalog(merged);
+        progress.value = 1;
+
         status.value = '';
+        final added = toInsert.length;
         final msg =
             'Records found: $totalFound • Duplicates: $duplicates • New: $newFound • Added: $added';
         successMessage.value = msg;
         Get.snackbar('Import summary', msg, snackPosition: SnackPosition.BOTTOM);
         AppLog.catalog(
-          'InventoryImport: VITRINA/CAJÓN parse path succeeded',
+          'InventoryImport: VITRINA/CAJÓN path succeeded',
           {
             'recordsFound': totalFound,
             'duplicates': duplicates,
             'newFound': newFound,
             'added': added,
+            'elapsedMs': DateTime.now().difference(t0).inMilliseconds,
           },
         );
         await _refreshCatalog();
         return;
       }
+
+      AppLog.catalog(
+        'InventoryImport: VITRINA parser returned empty, trying minimal sheet import',
+      );
 
       final sheetName = excel.tables.keys.first;
       final sheet = excel.tables[sheetName];
@@ -161,8 +255,8 @@ class InventoryImportController extends GetxController {
       var recordsFound = 0;
       var duplicates = 0;
       var newFound = 0;
-      var added = 0;
       final seenInFile = <String>{};
+      final newPerfumes = <Perfume>[];
 
       for (int r = 1; r < sheet.rows.length; r++) {
         final row = sheet.rows[r];
@@ -185,23 +279,36 @@ class InventoryImportController extends GetxController {
         seenInFile.add(k);
         newFound++;
 
-        final perfume = Perfume(
-          id: '${brand.toLowerCase()}-${name.toLowerCase()}'
-              .replaceAll(' ', '-')
-              .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
-          brand: brand,
-          name: name,
-          rating: rating,
-          imagePath: (imagePath?.isEmpty ?? true) ? null : imagePath,
+        newPerfumes.add(
+          Perfume(
+            id: '${brand.toLowerCase()}-${name.toLowerCase()}'
+                .replaceAll(' ', '-')
+                .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
+            brand: brand,
+            name: name,
+            rating: rating,
+            imagePath: (imagePath?.isEmpty ?? true) ? null : imagePath,
+          ),
         );
-        await _repo.upsert(perfume);
+        progress.value = total == 0 ? 1 : newPerfumes.length / total;
+      }
 
-        added++;
-        progress.value = total == 0 ? 1 : added / total;
-        status.value = 'Importing perfumes…';
+      if (newPerfumes.isNotEmpty) {
+        status.value = 'Guardando en base de datos…';
+        final merged = [...existing, ...newPerfumes];
+        AppLog.catalog(
+          'InventoryImport: fallback bulk saveFullCatalog',
+          {
+            'sheet': sheetName,
+            'newRows': newPerfumes.length,
+            'totalAfter': merged.length,
+          },
+        );
+        await _repo.saveFullCatalog(merged);
       }
 
       status.value = '';
+      final added = newPerfumes.length;
       final msg =
           'Records found: $recordsFound • Duplicates: $duplicates • New: $newFound • Added: $added';
       successMessage.value = msg;
@@ -214,17 +321,21 @@ class InventoryImportController extends GetxController {
           'newFound': newFound,
           'added': added,
           'sheet': sheetName,
+          'elapsedMs': DateTime.now().difference(t0).inMilliseconds,
         },
       );
       await _refreshCatalog();
-    } catch (e) {
+    } catch (e, st) {
       error.value =
           'Error al leer la hoja VITRINA o el formato del archivo. Intente de nuevo.';
       status.value = '';
-      AppLog.warning('InventoryImport: import failed', e);
+      AppLog.warning('InventoryImport: import failed', '$e\n$st');
     } finally {
       importing.value = false;
-      AppLog.action('InventoryImport: importFromXlsxBytes finished');
+      AppLog.action(
+        'InventoryImport: importFromXlsxBytes finished',
+        {'elapsedMs': DateTime.now().difference(t0).inMilliseconds},
+      );
     }
   }
 

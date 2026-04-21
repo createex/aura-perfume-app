@@ -10,6 +10,8 @@ import '../../view/inventory/inventory_import_page.dart';
 import '../bindings/app_bindings.dart';
 
 class AppPages {
+  /// Static paths (e.g. `/perfume/create`) must be registered **before**
+  /// `/perfume/:id` so GetX does not treat `create` as a perfume id.
   static final pages = <GetPage<dynamic>>[
     GetPage(
       name: AppRoutes.home,
@@ -18,17 +20,17 @@ class AppPages {
     ),
     GetPage(name: AppRoutes.library, page: () => const HomePage(initialTab: 0)),
     GetPage(name: AppRoutes.choose, page: () => const HomePage(initialTab: 1)),
-    GetPage(name: AppRoutes.perfumeDetail, page: () => const PerfumeDetailPage()),
+    GetPage(name: AppRoutes.perfumeCreate, page: () => const PerfumeEditPage()),
+    GetPage(name: AppRoutes.perfumeEdit, page: () => const PerfumeEditPage()),
     GetPage(
       name: AppRoutes.perfumeDetailPlantilla,
       page: () => const PerfumeDetailTemplatePage(),
     ),
+    GetPage(name: AppRoutes.perfumeDetail, page: () => const PerfumeDetailPage()),
     GetPage(
       name: AppRoutes.recommendationSpotlight,
       page: () => const RecommendationSpotlightPage(),
     ),
-    GetPage(name: AppRoutes.perfumeEdit, page: () => const PerfumeEditPage()),
-    GetPage(name: AppRoutes.perfumeCreate, page: () => const PerfumeEditPage()),
     GetPage(name: AppRoutes.inventoryImport, page: () => const InventoryImportPage()),
   ];
 }
