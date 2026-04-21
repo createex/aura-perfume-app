@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../controller/getx_controllers/home/home_nav_controller.dart';
 import '../controller/utils/app_colors.dart';
+import '../controller/utils/app_log.dart';
 import '../controller/utils/app_text_styles.dart';
 
 class AuraBottomNav extends StatelessWidget {
@@ -35,7 +36,13 @@ class AuraBottomNav extends StatelessWidget {
                 icon: Icons.local_library_outlined,
                 activeIcon: Icons.local_library_rounded,
                 active: idx == 0,
-                onTap: () => onTap(0),
+                onTap: () {
+                  AppLog.tap('AuraBottomNav', 'Biblioteca tab', {
+                    'fromIndex': idx,
+                    'toIndex': 0,
+                  });
+                  onTap(0);
+                },
               ),
             ),
             Expanded(
@@ -44,7 +51,13 @@ class AuraBottomNav extends StatelessWidget {
                 icon: Icons.auto_awesome_outlined,
                 activeIcon: Icons.auto_awesome_rounded,
                 active: idx == 1,
-                onTap: () => onTap(1),
+                onTap: () {
+                  AppLog.tap('AuraBottomNav', 'Qué usar tab', {
+                    'fromIndex': idx,
+                    'toIndex': 1,
+                  });
+                  onTap(1);
+                },
               ),
             ),
           ],

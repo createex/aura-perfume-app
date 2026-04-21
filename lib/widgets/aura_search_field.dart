@@ -8,6 +8,7 @@ class AuraSearchField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final String hintText;
   final VoidCallback? onFilter;
+  final bool filterActive;
 
   const AuraSearchField({
     super.key,
@@ -15,6 +16,7 @@ class AuraSearchField extends StatelessWidget {
     this.onChanged,
     this.hintText = 'Buscar fragancia…',
     this.onFilter,
+    this.filterActive = false,
   });
 
   @override
@@ -50,15 +52,41 @@ class AuraSearchField extends StatelessWidget {
         InkWell(
           onTap: onFilter,
           borderRadius: BorderRadius.circular(18),
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Icon(Icons.tune_rounded, color: AppColors.textPrimary),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: filterActive ? AppColors.primary : AppColors.border,
+                    width: filterActive ? 2 : 1,
+                  ),
+                ),
+                child: Icon(
+                  Icons.tune_rounded,
+                  color: filterActive
+                      ? AppColors.primary
+                      : AppColors.textPrimary,
+                ),
+              ),
+              if (filterActive)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],

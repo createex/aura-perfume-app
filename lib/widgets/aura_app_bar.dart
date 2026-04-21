@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../controller/utils/app_strings.dart';
 import '../controller/utils/app_text_styles.dart';
 import 'aura_icon_button.dart';
 
@@ -34,14 +35,23 @@ class AuraAppBar extends StatelessWidget implements PreferredSizeWidget {
               child: Align(
                 alignment: Alignment.center,
                 child: showWordmark
-                    ? Text('AURA', style: AppTextStyles.appWordmark)
+                    ? Text(
+                        AppStrings.brandWordmark,
+                        style: AppTextStyles.appWordmark,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      )
                     : (title == null
                         ? const SizedBox.shrink()
                         : Text(title!, style: AppTextStyles.perfumeName)),
               ),
             ),
             const SizedBox(width: 12),
-            AuraIconButton(icon: Icons.search_rounded, onTap: onSearch),
+            if (onSearch != null)
+              AuraIconButton(icon: Icons.search_rounded, onTap: onSearch)
+            else
+              const SizedBox(width: 44),
           ],
         ),
       ),

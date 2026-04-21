@@ -48,8 +48,18 @@ class AuraPrimaryButton extends StatelessWidget {
                             AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : Text(label.toUpperCase(),
-                      style: AppTextStyles.buttonPrimary),
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label.toUpperCase(),
+                          style: AppTextStyles.buttonPrimary,
+                          maxLines: 1,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -79,12 +89,21 @@ class AuraSecondaryButton extends StatelessWidget {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: AppColors.border),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(26),
           ),
           foregroundColor: AppColors.textPrimary,
         ),
-        child: Text(label.toUpperCase(), style: AppTextStyles.buttonSecondary),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label.toUpperCase(),
+            style: AppTextStyles.buttonSecondary,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
     );
     return expanded ? SizedBox(width: double.infinity, child: child) : child;
