@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 
 import '../../utils/app_log.dart';
+import '../../utils/perfume_import_sanitize.dart';
 import '../../utils/perfume_repository.dart';
 import '../../utils/perfume_xlsx_parser.dart';
 import '../perfume/perfume_controller.dart';
@@ -16,6 +17,7 @@ class InventoryImportController extends GetxController {
 
   final importing = false.obs;
   final exporting = false.obs;
+  final resetting = false.obs;
   final progress = 0.0.obs;
   final status = ''.obs;
   final error = RxnString();
@@ -24,6 +26,10 @@ class InventoryImportController extends GetxController {
 
   Future<void> pickAndImportExcel() async {
     AppLog.tap('InventoryImport', 'Select file (.xlsx)');
+    if (resetting.value) {
+      AppLog.action('InventoryImport: pick ignored (reset in progress)');
+      return;
+    }
     error.value = null;
     successMessage.value = null;
     exportSuccessPath.value = null;
@@ -61,6 +67,10 @@ class InventoryImportController extends GetxController {
 
   Future<void> exportCatalogToExcel() async {
     AppLog.tap('InventoryImport', 'Export catalog to .xlsx (app documents)');
+    if (resetting.value) {
+      AppLog.action('InventoryExport: ignored (reset in progress)');
+      return;
+    }
     if (exporting.value) {
       AppLog.action('InventoryExport: ignored (already running)');
       return;
@@ -101,6 +111,30 @@ class InventoryImportController extends GetxController {
     exportSuccessPath.value = null;
   }
 
+  /// Clears every perfume row from local SQLite (same path as a full import of an empty file).
+  Future<void> deleteAllCatalog() async {
+    if (resetting.value || importing.value || exporting.value) return;
+    AppLog.action('InventoryImport: deleteAllCatalog');
+    resetting.value = true;
+    error.value = null;
+    try {
+      await _repo.saveFullCatalog(const <Perfume>[]);
+      successMessage.value = null;
+      exportSuccessPath.value = null;
+      await _refreshCatalog();
+      Get.snackbar(
+        'Catálogo',
+        'Se eliminaron todos los registros.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, st) {
+      AppLog.warning('InventoryImport: deleteAllCatalog failed', '$e\n$st');
+      error.value = 'No se pudo vaciar el catálogo: $e';
+    } finally {
+      resetting.value = false;
+    }
+  }
+
   Future<void> _refreshCatalog() async {
     if (Get.isRegistered<PerfumeController>()) {
       AppLog.catalog('InventoryImport: refreshing PerfumeController catalog');
@@ -126,6 +160,13 @@ class InventoryImportController extends GetxController {
     exportSuccessPath.value = null;
 
     try {
+      if (bytes.length > PerfumeImportSanitize.maxFileBytes) {
+        throw Exception('El archivo supera el límite de 20 MB.');
+      }
+      AppLog.catalog(
+        'InventoryImport: merge into local SQLite only (no network)',
+        {'bytes': bytes.length},
+      );
       AppLog.catalog('InventoryImport: loading existing catalog from DB');
       final existing = await _repo.getAll();
       AppLog.catalog(
@@ -279,15 +320,17 @@ class InventoryImportController extends GetxController {
         rowIdx++;
         progress.value = total == 0 ? 1 : rowIdx / total;
 
-        final incoming = Perfume(
+        final raw = Perfume(
           id: '${brand.toLowerCase()}-${name.toLowerCase()}'
               .replaceAll(' ', '-')
               .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
           brand: brand,
           name: name,
-          rating: rating,
+          rating: PerfumeImportSanitize.clampRating0to10(rating),
           imagePath: (imagePath?.isEmpty ?? true) ? null : imagePath,
         );
+        final incoming = PerfumeImportSanitize.apply(raw);
+        if (incoming == null) continue;
 
         final idx = keyToIndex[k];
         if (idx != null) {
@@ -331,8 +374,13 @@ class InventoryImportController extends GetxController {
       );
       await _refreshCatalog();
     } catch (e, st) {
-      error.value =
-          'Error al leer la hoja VITRINA o el formato del archivo. Intente de nuevo.';
+      var msg = '$e';
+      if (msg.startsWith('Exception: ')) {
+        msg = msg.substring('Exception: '.length).trim();
+      }
+      error.value = msg.isEmpty
+          ? 'Error al leer la hoja VITRINA o el formato del archivo. Intente de nuevo.'
+          : msg;
       status.value = '';
       AppLog.warning('InventoryImport: import failed', '$e\n$st');
     } finally {

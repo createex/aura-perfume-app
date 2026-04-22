@@ -9,6 +9,44 @@ import '../../controller/utils/app_text_styles.dart';
 import '../../controller/utils/view_insets.dart';
 import '../../widgets/aura_buttons.dart';
 
+Future<void> _confirmResetCatalog(
+  BuildContext context,
+  InventoryImportController c,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(
+        '¿Vaciar catálogo?',
+        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w800),
+      ),
+      content: Text(
+        'Se eliminarán todos los perfumes guardados en este dispositivo. Esta acción no se puede deshacer.',
+        style: AppTextStyles.bodyMuted,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text('Cancel', style: AppTextStyles.body),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(
+            'Delete',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.danger,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+  if (!context.mounted || confirmed != true) return;
+  await c.deleteAllCatalog();
+}
+
 class InventoryImportPage extends StatelessWidget {
   const InventoryImportPage({super.key});
 
@@ -34,6 +72,29 @@ class InventoryImportPage extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         centerTitle: true,
+        actions: [
+          Obx(() {
+            final busy = c.importing.value ||
+                c.exporting.value ||
+                c.resetting.value;
+            return TextButton(
+              onPressed: busy
+                  ? null
+                  : () {
+                      AppLog.tap('InventoryImport', 'Reset (show dialog)');
+                      _confirmResetCatalog(context, c);
+                    },
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: Text(
+                'Reset',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            );
+          }),
+        ],
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(
@@ -95,6 +156,21 @@ class InventoryImportPage extends StatelessWidget {
                   'Asegúrese de que su archivo Excel contenga una hoja denominada exactamente VITRINA con las columnas del catálogo (NOMBRE, MARCA, PRECIO, etc.). El sistema lee VITRINA y CAJÓN cuando existen.',
                   style: AppTextStyles.bodyMuted,
                 ),
+                const SizedBox(height: 12),
+                Text(
+                  'La app no incluye un catálogo de muestra: al instalarla, su inventario empieza vacío. La importación solo actualiza la base de datos en este dispositivo; no envía el archivo a Internet.',
+                  style: AppTextStyles.bodyMuted,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Columnas (hoja VITRINA o CAJÓN)',
+                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _excelFieldGuide,
+                  style: AppTextStyles.bodyMuted,
+                ),
                 const SizedBox(height: 16),
                 CustomPaint(
                   painter: _DashedBorderPainter(
@@ -139,8 +215,9 @@ class InventoryImportPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         Obx(() {
-                          final busy =
-                              c.importing.value || c.exporting.value;
+                          final busy = c.importing.value ||
+                              c.exporting.value ||
+                              c.resetting.value;
                           return AuraPrimaryButton(
                             label: 'Seleccionar archivo',
                             loading: busy,
@@ -298,7 +375,9 @@ class InventoryImportPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Obx(() {
-                  final busy = c.exporting.value;
+                  final busy = c.importing.value ||
+                      c.exporting.value ||
+                      c.resetting.value;
                   return AuraSecondaryButton(
                     label: busy ? 'EXPORTANDO…' : 'EXPORTAR A EXCEL (.XLSX)',
                     onTap: busy
@@ -355,6 +434,37 @@ class InventoryImportPage extends StatelessWidget {
     );
   }
 }
+
+/// Headers accepted by [PerfumeXlsxParser] / export template (Spanish or English aliases).
+const String _excelFieldGuide = '''
+Requerido
+• Nombre o Name
+• Marca o Brand
+
+Opcional (hoja completa “estilo Vitrina”: columnas Salidas y Proyección, o bien Calificacion personal)
+• Calificacion personal, Rating o Puntuación (0 a 10; se ajusta si viene fuera de rango)
+• Precio o Price
+• Reponer (SI / -)
+• Proyeccion
+• Duracion
+• Perfil
+• Ropa
+• Dia/Noche
+• Frio/Calor
+• Playa
+• Salidas, Oficina, Familiar (SI / -)
+• Proveedor
+• Link
+• Vitrina
+• Top Coleccion / Top collection
+• Salida, Corazon, Fondo (notas; varias separadas por comas)
+• Descripcion o Description
+• Imagen o Image (ruta en el dispositivo)
+
+Si la hoja solo tiene columnas mínimas: además de Nombre y Marca puede usar Precio, Vitrina, Imagen y Descripcion.
+
+Validación al importar: nota 0–10, precios negativos ignorados, textos y listas acotados en longitud/cantidad, archivos mayores a 20 MB rechazados.
+''';
 
 class _DashedBorderPainter extends CustomPainter {
   _DashedBorderPainter({

@@ -4,6 +4,7 @@ import 'package:excel/excel.dart';
 
 import '../../domain/perfume/perfume.dart';
 import 'app_log.dart';
+import 'perfume_import_sanitize.dart';
 
 /// Reads the bundled inventory layout (sheets [VITRINA], [CAJON]) and optional
 /// English-header imports used by [InventoryImportController].
@@ -46,9 +47,12 @@ class PerfumeXlsxParser {
             ? _fromVitrinaRow(sheetName, r, row, header)
             : _fromMinimalRow(sheetName, r, row, header);
         if (p == null) continue;
-        final k = '${p.brand.toLowerCase()}|${p.name.toLowerCase()}';
+        final sanitized = PerfumeImportSanitize.apply(p);
+        if (sanitized == null) continue;
+        final k =
+            '${sanitized.brand.toLowerCase()}|${sanitized.name.toLowerCase()}';
         if (byKey.containsKey(k)) continue;
-        byKey[k] = p;
+        byKey[k] = sanitized;
       }
     }
 
@@ -123,6 +127,15 @@ class PerfumeXlsxParser {
     return v;
   }
 
+  static List<String> _splitCommaList(String raw) {
+    if (raw.isEmpty || raw == '-') return const [];
+    return raw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
+  }
+
   static String _stableId(String sheet, int row, String brand, String name) {
     final h = Object.hash(sheet, row, brand, name);
     return 'xlsx_${sheet}_${row}_$h';
@@ -168,6 +181,19 @@ class PerfumeXlsxParser {
       ]),
     );
 
+    final salidaNotes = _cell(row, _col(h, ['salida']));
+    final corazonNotes = _cell(row, _col(h, ['corazon', 'corazón']));
+    final fondoNotes = _cell(row, _col(h, ['fondo']));
+    final descCell = _cell(row, _col(h, ['descripcion', 'description']));
+    final imageRaw = _cell(row, _col(h, ['imagen', 'image']));
+
+    final String? description;
+    if (descCell.isNotEmpty && descCell != '-') {
+      description = descCell.trim();
+    } else {
+      description = null;
+    }
+
     final occasions = <String>[
       if (_isSi(salidas)) 'Salidas',
       if (_isSi(oficina)) 'Oficina',
@@ -190,7 +216,7 @@ class PerfumeXlsxParser {
       brand: brand,
       name: name,
       rating: rating,
-      description: null,
+      description: description,
       price: price,
       origin: proveedor.isEmpty ? null : proveedor,
       supplier: proveedor.isEmpty ? null : proveedor,
@@ -198,6 +224,9 @@ class PerfumeXlsxParser {
       clothing: _field(ropa),
       occasions: occasions,
       styles: styles,
+      notesTop: _splitCommaList(salidaNotes),
+      notesHeart: _splitCommaList(corazonNotes),
+      notesBase: _splitCommaList(fondoNotes),
       vitrina: _field(vitrina),
       reponer: _field(reponer),
       proyeccion: _field(proyeccion),
@@ -206,6 +235,7 @@ class PerfumeXlsxParser {
       frioCalor: _field(frioCalor),
       playaRaw: _field(playa),
       link: link.isEmpty ? null : link,
+      imagePath: imageRaw.isEmpty ? null : imageRaw,
       topCollection: topRaw.isEmpty ? null : _isSi(topRaw),
       beach: tri(playa),
       outings: tri(salidas),
@@ -231,14 +261,22 @@ class PerfumeXlsxParser {
     final price = _parseDouble(_cell(row, _col(h, ['precio', 'price'])));
     final vitrina = _cell(row, _col(h, ['vitrina']));
     final imageRaw = _cell(row, _col(h, ['image', 'imagen']));
-    final desc = vitrina.isEmpty ? null : 'Ubicación: $vitrina';
+    final descCell = _cell(row, _col(h, ['descripcion', 'description']));
+    final String? description;
+    if (descCell.isNotEmpty && descCell != '-') {
+      description = descCell.trim();
+    } else if (vitrina.isNotEmpty && vitrina != '-') {
+      description = 'Ubicación: $vitrina';
+    } else {
+      description = null;
+    }
 
     return Perfume(
       id: _stableId(sheetName, rowIndex, brand, name),
       brand: brand,
       name: name,
       rating: rating,
-      description: desc,
+      description: description,
       price: price,
       origin: null,
       imagePath: imageRaw.isEmpty ? null : imageRaw,

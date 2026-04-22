@@ -25,8 +25,10 @@ class PerfumeDatabase {
     if (_db != null) return _db!;
     AppLog.db('PerfumeDatabase.get database: opening SQLite…');
     _db = await _open();
-    AppLog.db('PerfumeDatabase.get database: opened, running seed/migrate…');
-    await _ensureSeeded(_db!);
+    AppLog.db(
+      'PerfumeDatabase.get database: opened, running legacy migrate (no bundled catalog)',
+    );
+    await _migrateLegacyJsonIfDbEmpty(_db!);
     final n = await _countRows(_db!);
     AppLog.db('PerfumeDatabase.get database: ready', {'rowCount': n});
     return _db!;
@@ -93,15 +95,17 @@ CREATE TABLE perfumes (
     );
   }
 
-  Future<void> _ensureSeeded(Database db) async {
+  /// Fresh installs stay empty. Only older installs may have [perfume_library.json]
+  /// in app documents; that file is imported once then renamed.
+  Future<void> _migrateLegacyJsonIfDbEmpty(Database db) async {
     var count = await _countRows(db);
-    AppLog.db('_ensureSeeded: initial COUNT(*)', {'count': count});
+    AppLog.db('_migrateLegacyJsonIfDbEmpty: initial COUNT(*)', {'count': count});
     if (count > 0) return;
 
-    AppLog.db('_ensureSeeded: empty DB → try legacy JSON migration');
+    AppLog.db('_migrateLegacyJsonIfDbEmpty: empty DB → try legacy JSON migration');
     await _migrateLegacyJsonIfPresent(db);
     count = await _countRows(db);
-    AppLog.db('_ensureSeeded: after JSON migration', {'count': count});
+    AppLog.db('_migrateLegacyJsonIfDbEmpty: after JSON migration', {'count': count});
   }
 
   Future<void> _migrateLegacyJsonIfPresent(Database db) async {
