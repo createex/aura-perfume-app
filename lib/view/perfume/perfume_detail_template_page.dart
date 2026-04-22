@@ -7,6 +7,7 @@ import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
+import '../../controller/utils/rating_format.dart';
 import '../../controller/utils/view_insets.dart';
 import '../../widgets/aura_section.dart';
 import '../../widgets/perfume_image.dart';
@@ -108,7 +109,7 @@ class PerfumeDetailTemplatePage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  perfume.rating.toStringAsFixed(1),
+                  RatingFormat.pill(perfume.rating),
                   style: AppTextStyles.body
                       .copyWith(fontWeight: FontWeight.w900),
                 ),

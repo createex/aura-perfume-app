@@ -18,8 +18,17 @@ class PerfumeRepository {
   Future<List<Perfume>> getAll() async {
     AppLog.catalog('PerfumeRepository.getAll: start');
     final list = await _store.load();
-    AppLog.catalog('PerfumeRepository.getAll: done', {'count': list.length});
-    return list;
+    final cleaned = list
+        .map((p) {
+          final ip = p.imagePath;
+          if (ip != null && ip.startsWith('assets/')) {
+            return p.copyWith(clearImagePath: true);
+          }
+          return p;
+        })
+        .toList(growable: false);
+    AppLog.catalog('PerfumeRepository.getAll: done', {'count': cleaned.length});
+    return cleaned;
   }
 
   /// Writes the full catalog in one SQLite transaction (used for bulk import).

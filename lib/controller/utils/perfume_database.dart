@@ -1,17 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/perfume/perfume.dart';
 import 'app_log.dart';
-import 'perfume_xlsx_parser.dart';
 
-/// Local SQLite catalog. Migrates legacy `perfume_library.json` once, then seeds
-/// from bundled Excel if the database is still empty.
+/// Local SQLite catalog. Migrates legacy `perfume_library.json` once.
+/// Catalog starts empty until the user imports their own Excel.
 class PerfumeDatabase {
   PerfumeDatabase._();
 
@@ -20,7 +18,6 @@ class PerfumeDatabase {
   static const _dbName = 'perfumes.db';
   static const _dbVersion = 1;
   static const _legacyJson = 'perfume_library.json';
-  static const _bundledXlsx = 'assets/perfumes_data/Perfumes.xlsx';
 
   Database? _db;
 
@@ -105,14 +102,6 @@ CREATE TABLE perfumes (
     await _migrateLegacyJsonIfPresent(db);
     count = await _countRows(db);
     AppLog.db('_ensureSeeded: after JSON migration', {'count': count});
-    if (count > 0) return;
-
-    AppLog.db('_ensureSeeded: still empty → seed bundled Excel', {
-      'asset': _bundledXlsx,
-    });
-    await _seedBundledExcel(db);
-    count = await _countRows(db);
-    AppLog.db('_ensureSeeded: after bundled seed', {'count': count});
   }
 
   Future<void> _migrateLegacyJsonIfPresent(Database db) async {
@@ -163,40 +152,6 @@ CREATE TABLE perfumes (
       );
     } catch (e, st) {
       AppLog.warning('Legacy JSON migration failed: $e\n$st');
-    }
-  }
-
-  Future<void> _seedBundledExcel(Database db) async {
-    try {
-      AppLog.io('Bundled Excel seed: loading asset', {'asset': _bundledXlsx});
-      final data = await rootBundle.load(_bundledXlsx);
-      final bytes = data.buffer.asUint8List(
-        data.offsetInBytes,
-        data.lengthInBytes,
-      );
-      final list = PerfumeXlsxParser.parseBytes(bytes);
-      AppLog.io(
-        'Bundled Excel seed: parsed rows',
-        {'parsedCount': list.length, 'byteLength': bytes.length},
-      );
-      if (list.isEmpty) {
-        AppLog.warning('Bundled Excel seed: parser returned zero rows');
-        return;
-      }
-      final batch = db.batch();
-      for (final perfume in list) {
-        batch.insert(
-          'perfumes',
-          _toRow(perfume),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-      await batch.commit(noResult: true);
-      AppLog.db('Bundled Excel seed: batch insert committed', {
-        'inserted': list.length,
-      });
-    } catch (e, st) {
-      AppLog.warning('Bundled Excel seed failed: $e\n$st');
     }
   }
 

@@ -127,6 +127,8 @@ class Perfume {
     List<String>? notesHeart,
     List<String>? notesBase,
     String? imagePath,
+    /// When true, [imagePath] becomes `null` regardless of [imagePath] argument.
+    bool clearImagePath = false,
     String? vitrina,
     String? reponer,
     String? proyeccion,
@@ -159,7 +161,7 @@ class Perfume {
       notesTop: notesTop ?? this.notesTop,
       notesHeart: notesHeart ?? this.notesHeart,
       notesBase: notesBase ?? this.notesBase,
-      imagePath: imagePath ?? this.imagePath,
+      imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
       vitrina: vitrina ?? this.vitrina,
       reponer: reponer ?? this.reponer,
       proyeccion: proyeccion ?? this.proyeccion,

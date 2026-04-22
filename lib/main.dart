@@ -8,16 +8,10 @@ import 'controller/utils/aura_navigator_observer.dart';
 import 'controller/utils/app_pages.dart';
 import 'controller/utils/app_routes.dart';
 import 'controller/utils/app_text_styles.dart';
-import 'controller/utils/perfume_image_resolver.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  AppLog.startup('Initializing app (bindings + asset manifest)');
-  await PerfumeImageResolver.instance.ensureLoaded();
-  AppLog.startup(
-    'PerfumeImageResolver indexed raster files',
-    {'count': PerfumeImageResolver.instance.indexedRasterAssetCount},
-  );
+  AppLog.startup('Initializing app');
   AppLog.startup(
     'runApp: GetMaterialApp (GetX routingCallback + NavigatorObserver for stack)',
   );

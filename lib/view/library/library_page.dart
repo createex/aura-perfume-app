@@ -9,6 +9,7 @@ import '../../controller/utils/app_routes.dart';
 import '../../controller/utils/app_text_styles.dart';
 import '../../domain/perfume/perfume.dart';
 import '../../widgets/aura_search_field.dart';
+import '../../widgets/library_row_perfume_card.dart';
 import '../../widgets/perfume_card.dart';
 import 'library_filters_sheet.dart';
 
@@ -215,7 +216,9 @@ class _LibraryPageState extends State<LibraryPage> {
                           final p = items[index];
                           return Padding(
                             padding: EdgeInsets.only(
-                              bottom: index < items.length - 1 ? 14 : 0,
+                              bottom: index < items.length - 1
+                                  ? 14 * LibraryRowPerfumeCard.libraryRowScale
+                                  : 0,
                             ),
                             child: PerfumeCard(
                               perfume: p,

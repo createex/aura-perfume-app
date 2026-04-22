@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 
 import '../../utils/app_log.dart';
-import '../../utils/perfume_image_resolver.dart';
 import '../../utils/perfume_repository.dart';
 import '../../../domain/library/library_catalog_filter.dart';
 import '../../../domain/perfume/perfume.dart';
@@ -154,33 +153,13 @@ class PerfumeController extends GetxController {
     refreshPerfumes();
   }
 
-  List<Perfume> _withResolvedImages(List<Perfume> list) {
-    final r = PerfumeImageResolver.instance;
-    return list.map((p) {
-      final hasAsset =
-          p.imagePath != null && p.imagePath!.startsWith('assets/');
-      if (hasAsset) return p;
-      final m = r.matchFor(p);
-      if (m == null) return p;
-      return p.copyWith(imagePath: m);
-    }).toList(growable: false);
-  }
-
   Future<void> refreshPerfumes() async {
     final t0 = DateTime.now();
     AppLog.catalog('PerfumeController.refreshPerfumes started');
     isLoading.value = true;
     try {
-      await PerfumeImageResolver.instance.ensureLoaded();
-      AppLog.catalog(
-        'PerfumeController.refreshPerfumes: resolver ready',
-        {
-          'resolverIndexedAssets':
-              PerfumeImageResolver.instance.indexedRasterAssetCount,
-        },
-      );
       final raw = await _repo.getAll();
-      perfumes.assignAll(_withResolvedImages(raw));
+      perfumes.assignAll(raw);
       perfumes.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       );

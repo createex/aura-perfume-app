@@ -27,6 +27,10 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
   late final TextEditingController _vitrina;
   late final TextEditingController _name;
   late final TextEditingController _brand;
+  late final TextEditingController _ratingMinC;
+  late final TextEditingController _ratingMaxC;
+  late final TextEditingController _priceMinC;
+  late final TextEditingController _priceMaxC;
 
   PerfumeController get _c => Get.find<PerfumeController>();
 
@@ -39,15 +43,20 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
     super.initState();
     final cap = LibraryCatalogFilter.catalogPriceCeiling(_c.catalogMaxPrice);
     final src = _sourceFilter;
-    _d = src.copyWith(
-      ratingMin: 0,
-      priceMin: 0,
-      ratingMax: src.ratingMax.clamp(0, 10),
-      priceMax: src.priceMax.clamp(0, cap),
+    _d = _normalizeRanges(
+      src.copyWith(
+        ratingMax: src.ratingMax.clamp(0, 10),
+        priceMax: src.priceMax.clamp(0, cap),
+      ),
+      cap,
     );
     _vitrina = TextEditingController(text: _d.vitrinaContains);
     _name = TextEditingController(text: _d.nameContains);
     _brand = TextEditingController(text: _d.brandContains);
+    _ratingMinC = TextEditingController(text: '${_d.ratingMin}');
+    _ratingMaxC = TextEditingController(text: '${_d.ratingMax}');
+    _priceMinC = TextEditingController(text: _fmtPrice(_d.priceMin));
+    _priceMaxC = TextEditingController(text: _fmtPrice(_d.priceMax));
     AppLog.tap(
       'CatalogFiltersSheet',
       'opened',
@@ -63,17 +72,64 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
     _vitrina.dispose();
     _name.dispose();
     _brand.dispose();
+    _ratingMinC.dispose();
+    _ratingMaxC.dispose();
+    _priceMinC.dispose();
+    _priceMaxC.dispose();
     super.dispose();
   }
 
+  static String _fmtPrice(double v) {
+    if (v == v.roundToDouble()) return '${v.round()}';
+    return v.toStringAsFixed(2);
+  }
+
+  static LibraryCatalogFilter _normalizeRanges(
+    LibraryCatalogFilter d,
+    double cap,
+  ) {
+    var rMin = d.ratingMin.clamp(0, 10);
+    var rMax = d.ratingMax.clamp(0, 10);
+    if (rMin > rMax) {
+      final t = rMin;
+      rMin = rMax;
+      rMax = t;
+    }
+    var pMin = d.priceMin.clamp(0, cap);
+    var pMax = d.priceMax.clamp(0, cap);
+    if (pMin > pMax) {
+      final t = pMin;
+      pMin = pMax;
+      pMax = t;
+    }
+    return d.copyWith(
+      ratingMin: rMin,
+      ratingMax: rMax,
+      priceMin: pMin.toDouble(),
+      priceMax: pMax.toDouble(),
+    );
+  }
+
   void _apply() {
-    final next = _d.copyWith(
+    final cap = LibraryCatalogFilter.catalogPriceCeiling(_c.catalogMaxPrice);
+    final rMin = int.tryParse(_ratingMinC.text.trim());
+    final rMax = int.tryParse(_ratingMaxC.text.trim());
+    final pMin = double.tryParse(
+      _priceMinC.text.trim().replaceAll(',', '.'),
+    );
+    final pMax = double.tryParse(
+      _priceMaxC.text.trim().replaceAll(',', '.'),
+    );
+    var next = _d.copyWith(
       vitrinaContains: _vitrina.text,
       nameContains: _name.text,
       brandContains: _brand.text,
-      ratingMin: 0,
-      priceMin: 0,
+      ratingMin: rMin ?? _d.ratingMin,
+      ratingMax: rMax ?? _d.ratingMax,
+      priceMin: pMin ?? _d.priceMin,
+      priceMax: pMax ?? _d.priceMax,
     );
+    next = _normalizeRanges(next, cap);
     if (widget.target == CatalogFiltersTarget.library) {
       _c.setLibraryFilter(next);
     } else {
@@ -182,7 +238,6 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
     final c = _c;
     final maxP = LibraryCatalogFilter.catalogPriceCeiling(c.catalogMaxPrice);
     final bottomPad = 14 + ViewInsets.bottomOverlap(context);
-    final priceHi = _d.priceMax > maxP ? maxP : _d.priceMax;
 
     return Material(
       color: AppColors.surface,
@@ -248,29 +303,65 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
                       const SizedBox(height: 14),
                       AuraSection(
                         title:
-                            'Calificación (0–${_d.ratingMax.clamp(0, 10).round()})',
+                            'Calificación (${_d.ratingMin.clamp(0, 10)}–${_d.ratingMax.clamp(0, 10)})',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Mínimo fijo: 0 (sin calificar) · máximo 0–10',
+                              'Rango 0–10 (usa el control o escribe mín / máx)',
                               style: AppTextStyles.bodyMuted,
                             ),
                             const SizedBox(height: 8),
-                            Slider(
-                              value: _d.ratingMax.clamp(0, 10).toDouble(),
+                            RangeSlider(
+                              values: RangeValues(
+                                _d.ratingMin.clamp(0, 10).toDouble(),
+                                _d.ratingMax.clamp(0, 10).toDouble(),
+                              ),
                               min: 0,
                               max: 10,
                               divisions: 10,
-                              label: '${_d.ratingMax.clamp(0, 10).round()}',
+                              labels: RangeLabels(
+                                '${_d.ratingMin}',
+                                '${_d.ratingMax}',
+                              ),
                               onChanged: (v) {
                                 setState(() {
-                                  _d = _d.copyWith(
-                                    ratingMin: 0,
-                                    ratingMax: v.round().clamp(0, 10),
+                                  final cap = LibraryCatalogFilter.catalogPriceCeiling(
+                                      c.catalogMaxPrice);
+                                  _d = _normalizeRanges(
+                                    _d.copyWith(
+                                      ratingMin: v.start.round(),
+                                      ratingMax: v.end.round(),
+                                    ),
+                                    cap,
                                   );
+                                  _ratingMinC.text = '${_d.ratingMin}';
+                                  _ratingMaxC.text = '${_d.ratingMax}';
                                 });
                               },
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _ratingMinC,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Mín',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _ratingMaxC,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Máx',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -278,27 +369,64 @@ class _CatalogFiltersSheetState extends State<CatalogFiltersSheet> {
                       const SizedBox(height: 14),
                       AuraSection(
                         title:
-                            'Precio (hasta \$${priceHi.round()} · máx. catálogo \$${maxP.round()})',
+                            'Precio (\$${_fmtPrice(_d.priceMin.clamp(0, maxP))}–\$${_fmtPrice(_d.priceMax.clamp(0, maxP))} · catálogo hasta \$${maxP.round()})',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Mínimo fijo: \$0 · ajusta el máximo',
+                              'Rango en moneda del catálogo (control o texto mín / máx)',
                               style: AppTextStyles.bodyMuted,
                             ),
                             const SizedBox(height: 8),
-                            Slider(
-                              value: priceHi.clamp(0, maxP),
+                            RangeSlider(
+                              values: RangeValues(
+                                _d.priceMin.clamp(0, maxP),
+                                _d.priceMax.clamp(0, maxP),
+                              ),
                               min: 0,
                               max: maxP,
+                              labels: RangeLabels(
+                                '\$${_fmtPrice(_d.priceMin.clamp(0, maxP))}',
+                                '\$${_fmtPrice(_d.priceMax.clamp(0, maxP))}',
+                              ),
                               onChanged: (v) {
                                 setState(() {
-                                  _d = _d.copyWith(
-                                    priceMin: 0,
-                                    priceMax: v.clamp(0, maxP),
+                                  _d = _normalizeRanges(
+                                    _d.copyWith(
+                                      priceMin: v.start.clamp(0, maxP),
+                                      priceMax: v.end.clamp(0, maxP),
+                                    ),
+                                    maxP,
                                   );
+                                  _priceMinC.text = _fmtPrice(_d.priceMin);
+                                  _priceMaxC.text = _fmtPrice(_d.priceMax);
                                 });
                               },
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _priceMinC,
+                                    keyboardType: const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Mín \$',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _priceMaxC,
+                                    keyboardType: const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Máx \$',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),

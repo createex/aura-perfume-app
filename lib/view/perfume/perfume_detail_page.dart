@@ -6,6 +6,7 @@ import '../../controller/utils/app_log.dart';
 import '../../controller/utils/catalog_text_links.dart';
 import '../../controller/utils/launch_url_helper.dart';
 import '../../controller/utils/app_routes.dart';
+import '../../controller/utils/rating_format.dart';
 import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
 import '../../controller/utils/view_insets.dart';
@@ -253,7 +254,7 @@ class PerfumeDetailPage extends StatelessWidget {
                   child: Row(
                     children: [
                       Text(
-                        perfume.rating.toStringAsFixed(1),
+                        RatingFormat.pill(perfume.rating),
                         style: AppTextStyles.body
                             .copyWith(fontWeight: FontWeight.w900),
                       ),

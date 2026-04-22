@@ -74,11 +74,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  assets:
-     - assets/pngs/
-     - assets/perfumes_data/
-  #   - images/a_dot_ham.jpeg
+  # No bundled app assets (catalog + images come from user import / device).
+  # Add an `assets:` list here only if you ship images/fonts again.
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -106,10 +103,10 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# Launcher icon only (do not embed this asset inside in-app UI).
+# Launcher icon source: existing Android foreground (no `assets/` folder required).
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/pngs/app-logo.jpeg
-  adaptive_icon_background: "#0B1634"
-  adaptive_icon_foreground: assets/pngs/app-logo.jpeg
+  image_path: android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png
+  adaptive_icon_background: "#00000000"
+  adaptive_icon_foreground: android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png

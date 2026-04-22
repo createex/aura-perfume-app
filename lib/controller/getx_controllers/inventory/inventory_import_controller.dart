@@ -132,11 +132,6 @@ class InventoryImportController extends GetxController {
         'InventoryImport: existing catalog loaded',
         {'existingCount': existing.length},
       );
-      final existingKeys = existing
-          .map((p) => _keyOf(p.brand, p.name))
-          .where((k) => k.isNotEmpty)
-          .toSet();
-
       AppLog.catalog('InventoryImport: decoding Excel with package:excel');
       final excel = Excel.decodeBytes(bytes);
       if (excel.tables.isEmpty) {
@@ -153,69 +148,66 @@ class InventoryImportController extends GetxController {
       final parsed = PerfumeXlsxParser.parseWorkbook(excel);
       if (parsed.isNotEmpty) {
         final totalFound = parsed.length;
-        var duplicates = 0;
-        final toInsert = <Perfume>[];
+        var dupInFile = 0;
+        var updated = 0;
+        var added = 0;
         final seenInFile = <String>{};
 
-        for (final perfume in parsed) {
-          final k = _keyOf(perfume.brand, perfume.name);
+        final out = List<Perfume>.from(existing);
+        final keyToIndex = <String, int>{};
+        for (var i = 0; i < out.length; i++) {
+          final k = _keyOf(out[i].brand, out[i].name);
+          if (k.isNotEmpty) keyToIndex[k] = i;
+        }
+
+        for (var i = 0; i < parsed.length; i++) {
+          final incoming = parsed[i];
+          final k = _keyOf(incoming.brand, incoming.name);
           if (k.isEmpty) continue;
-          if (existingKeys.contains(k) || seenInFile.contains(k)) {
-            duplicates++;
+          if (seenInFile.contains(k)) {
+            dupInFile++;
             continue;
           }
           seenInFile.add(k);
-          existingKeys.add(k);
-          toInsert.add(perfume);
-        }
+          progress.value = totalFound == 0 ? 1 : (i + 1) / totalFound;
 
-        final newFound = toInsert.length;
-        AppLog.catalog(
-          'InventoryImport: VITRINA-style parse + duplicate filter',
-          {
-            'parsedRows': totalFound,
-            'duplicates': duplicates,
-            'newRows': newFound,
-          },
-        );
-
-        if (toInsert.isEmpty) {
-          status.value = '';
-          final msg =
-              'Records found: $totalFound • Duplicates: $duplicates • New: 0 • Added: 0';
-          successMessage.value = msg;
-          AppLog.catalog('InventoryImport: nothing to insert after dedupe');
-          Get.snackbar('Import summary', msg, snackPosition: SnackPosition.BOTTOM);
-          await _refreshCatalog();
-          return;
+          final idx = keyToIndex[k];
+          if (idx != null) {
+            out[idx] = _mergeVitrinaRow(out[idx], incoming);
+            updated++;
+          } else {
+            out.add(incoming);
+            keyToIndex[k] = out.length - 1;
+            added++;
+          }
         }
 
         status.value = 'Guardando en base de datos…';
         progress.value = 0.35;
-        final merged = [...existing, ...toInsert];
         AppLog.catalog(
-          'InventoryImport: bulk saveFullCatalog',
+          'InventoryImport: bulk saveFullCatalog (merge)',
           {
             'before': existing.length,
-            'inserting': toInsert.length,
-            'after': merged.length,
+            'after': out.length,
+            'dupInFile': dupInFile,
+            'updated': updated,
+            'added': added,
           },
         );
-        await _repo.saveFullCatalog(merged);
+        await _repo.saveFullCatalog(out);
         progress.value = 1;
 
         status.value = '';
-        final added = toInsert.length;
         final msg =
-            'Records found: $totalFound • Duplicates: $duplicates • New: $newFound • Added: $added';
+            'Records found: $totalFound • Duplicate rows in file: $dupInFile • Updated: $updated • Added: $added';
         successMessage.value = msg;
         Get.snackbar('Import summary', msg, snackPosition: SnackPosition.BOTTOM);
         AppLog.catalog(
           'InventoryImport: VITRINA/CAJÓN path succeeded',
           {
             'recordsFound': totalFound,
-            'duplicates': duplicates,
-            'newFound': newFound,
+            'dupInFile': dupInFile,
+            'updated': updated,
             'added': added,
             'elapsedMs': DateTime.now().difference(t0).inMilliseconds,
           },
@@ -253,11 +245,19 @@ class InventoryImportController extends GetxController {
 
       final total = (sheet.rows.length - 1).clamp(0, 1 << 30);
       var recordsFound = 0;
-      var duplicates = 0;
-      var newFound = 0;
+      var dupInFile = 0;
+      var updated = 0;
+      var added = 0;
       final seenInFile = <String>{};
-      final newPerfumes = <Perfume>[];
 
+      final out = List<Perfume>.from(existing);
+      final keyToIndex = <String, int>{};
+      for (var i = 0; i < out.length; i++) {
+        final k = _keyOf(out[i].brand, out[i].name);
+        if (k.isNotEmpty) keyToIndex[k] = i;
+      }
+
+      var rowIdx = 0;
       for (int r = 1; r < sheet.rows.length; r++) {
         final row = sheet.rows[r];
         final brand = _cell(row, idxBrand);
@@ -271,54 +271,59 @@ class InventoryImportController extends GetxController {
 
         final k = _keyOf(brand, name);
         if (k.isEmpty) continue;
-        if (existingKeys.contains(k) || seenInFile.contains(k)) {
-          duplicates++;
+        if (seenInFile.contains(k)) {
+          dupInFile++;
           continue;
         }
-        existingKeys.add(k);
         seenInFile.add(k);
-        newFound++;
+        rowIdx++;
+        progress.value = total == 0 ? 1 : rowIdx / total;
 
-        newPerfumes.add(
-          Perfume(
-            id: '${brand.toLowerCase()}-${name.toLowerCase()}'
-                .replaceAll(' ', '-')
-                .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
-            brand: brand,
-            name: name,
-            rating: rating,
-            imagePath: (imagePath?.isEmpty ?? true) ? null : imagePath,
-          ),
+        final incoming = Perfume(
+          id: '${brand.toLowerCase()}-${name.toLowerCase()}'
+              .replaceAll(' ', '-')
+              .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
+          brand: brand,
+          name: name,
+          rating: rating,
+          imagePath: (imagePath?.isEmpty ?? true) ? null : imagePath,
         );
-        progress.value = total == 0 ? 1 : newPerfumes.length / total;
+
+        final idx = keyToIndex[k];
+        if (idx != null) {
+          out[idx] = _mergeMinimalRow(out[idx], incoming);
+          updated++;
+        } else {
+          out.add(incoming);
+          keyToIndex[k] = out.length - 1;
+          added++;
+        }
       }
 
-      if (newPerfumes.isNotEmpty) {
-        status.value = 'Guardando en base de datos…';
-        final merged = [...existing, ...newPerfumes];
-        AppLog.catalog(
-          'InventoryImport: fallback bulk saveFullCatalog',
-          {
-            'sheet': sheetName,
-            'newRows': newPerfumes.length,
-            'totalAfter': merged.length,
-          },
-        );
-        await _repo.saveFullCatalog(merged);
-      }
+      status.value = 'Guardando en base de datos…';
+      AppLog.catalog(
+        'InventoryImport: fallback bulk saveFullCatalog (merge)',
+        {
+          'sheet': sheetName,
+          'rowsAfter': out.length,
+          'dupInFile': dupInFile,
+          'updated': updated,
+          'added': added,
+        },
+      );
+      await _repo.saveFullCatalog(out);
 
       status.value = '';
-      final added = newPerfumes.length;
       final msg =
-          'Records found: $recordsFound • Duplicates: $duplicates • New: $newFound • Added: $added';
+          'Records found: $recordsFound • Duplicate rows in file: $dupInFile • Updated: $updated • Added: $added';
       successMessage.value = msg;
       Get.snackbar('Import summary', msg, snackPosition: SnackPosition.BOTTOM);
       AppLog.catalog(
         'InventoryImport: fallback sheet import finished',
         {
           'recordsFound': recordsFound,
-          'duplicates': duplicates,
-          'newFound': newFound,
+          'dupInFile': dupInFile,
+          'updated': updated,
           'added': added,
           'sheet': sheetName,
           'elapsedMs': DateTime.now().difference(t0).inMilliseconds,
@@ -349,5 +354,28 @@ class InventoryImportController extends GetxController {
     final n = name.trim().toLowerCase();
     if (b.isEmpty || n.isEmpty) return '';
     return '$b|$n';
+  }
+
+  static String? _preferIncomingImage(String? oldPath, String? incoming) {
+    if (incoming != null && incoming.trim().isNotEmpty) {
+      return incoming.trim();
+    }
+    return oldPath;
+  }
+
+  static Perfume _mergeVitrinaRow(Perfume existing, Perfume incoming) {
+    return incoming.copyWith(
+      id: existing.id,
+      imagePath: _preferIncomingImage(existing.imagePath, incoming.imagePath),
+    );
+  }
+
+  static Perfume _mergeMinimalRow(Perfume existing, Perfume incoming) {
+    return existing.copyWith(
+      brand: incoming.brand,
+      name: incoming.name,
+      rating: incoming.rating,
+      imagePath: _preferIncomingImage(existing.imagePath, incoming.imagePath),
+    );
   }
 }

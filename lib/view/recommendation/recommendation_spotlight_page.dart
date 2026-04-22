@@ -7,6 +7,7 @@ import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
 import '../../controller/utils/app_routes.dart';
+import '../../controller/utils/rating_format.dart';
 import '../../controller/utils/app_strings.dart';
 import '../../controller/utils/app_text_styles.dart';
 import '../../controller/utils/view_insets.dart';
@@ -129,7 +130,7 @@ class _RecommendationSpotlightPageState
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                p.rating.toStringAsFixed(1),
+                                RatingFormat.pill(p.rating),
                                 style: AppTextStyles.body.copyWith(
                                   fontWeight: FontWeight.w900,
                                   color: AppColors.primary,

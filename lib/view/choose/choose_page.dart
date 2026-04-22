@@ -125,6 +125,11 @@ class _ChoosePageState extends State<ChoosePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('HORARIO', style: AppTextStyles.caption),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Manual filter (not live clock / location).',
+                          style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -154,6 +159,11 @@ class _ChoosePageState extends State<ChoosePage> {
                         ),
                         const SizedBox(height: 14),
                         Text('CLIMA', style: AppTextStyles.caption),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Manual filter (no paid weather API).',
+                          style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                        ),
                         const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
@@ -350,7 +360,8 @@ class _ChoosePageState extends State<ChoosePage> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 14,
                     mainAxisSpacing: 14,
-                    childAspectRatio: 0.78,
+                    // Taller cells so square image + text row fits without overflow.
+                    childAspectRatio: 0.66,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, i) {
