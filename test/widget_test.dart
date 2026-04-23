@@ -6,11 +6,13 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 
 import 'package:aura_perfume_app/main.dart';
 
 void main() {
   testWidgets('App boots and shows wordmark', (WidgetTester tester) async {
+    Get.testMode = true;
     await tester.pumpWidget(const AuraPerfumeApp());
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('MS Parfumerie'), findsWidgets);

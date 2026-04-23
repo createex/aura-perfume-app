@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controller/getx_controllers/live_context_controller.dart';
 import '../../controller/getx_controllers/perfume/perfume_controller.dart';
 import '../../controller/utils/app_colors.dart';
 import '../../controller/utils/app_log.dart';
@@ -22,12 +23,14 @@ class ChoosePage extends StatefulWidget {
 class _ChoosePageState extends State<ChoosePage> {
   late final TextEditingController _searchQ;
   Worker? _chooseQueryWorker;
+  late final LiveContextController _live;
 
   @override
   void initState() {
     super.initState();
     AppLog.startup('ChoosePage initState (Qué usar tab body)');
     final c = Get.find<PerfumeController>();
+    _live = Get.put(LiveContextController(), permanent: true);
     _searchQ = TextEditingController(text: c.chooseQuery.value);
     _searchQ.addListener(_onSearchChanged);
     _chooseQueryWorker = ever<String>(c.chooseQuery, (q) {
@@ -52,6 +55,9 @@ class _ChoosePageState extends State<ChoosePage> {
     _chooseQueryWorker?.dispose();
     _searchQ.removeListener(_onSearchChanged);
     _searchQ.dispose();
+    if (Get.isRegistered<LiveContextController>()) {
+      Get.delete<LiveContextController>();
+    }
     super.dispose();
   }
 
@@ -99,6 +105,13 @@ class _ChoosePageState extends State<ChoosePage> {
         final f = c.chooseFilter.value;
         final filterActive = f.isActive(c.catalogMaxPrice) ||
             c.chooseQuery.value.trim().isNotEmpty;
+        final now = _live.now.value;
+        final hh = now.hour.toString().padLeft(2, '0');
+        final mm = now.minute.toString().padLeft(2, '0');
+        final city = _live.cityLabel.value;
+        final temp = _live.temperatureC.value;
+        final weather = _live.weatherLabel.value;
+        final timeOfDay = _live.timeOfDayLabel.value;
 
         return CustomScrollView(
           slivers: [
@@ -127,7 +140,11 @@ class _ChoosePageState extends State<ChoosePage> {
                         Text('HORARIO', style: AppTextStyles.caption),
                         const SizedBox(height: 4),
                         Text(
-                          'Manual filter (not live clock / location).',
+                          [
+                            'Ahora: $hh:$mm',
+                            if (timeOfDay != null) '($timeOfDay)',
+                            if (city != null && city.trim().isNotEmpty) city.trim(),
+                          ].join(' • '),
                           style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
                         ),
                         const SizedBox(height: 8),
@@ -161,8 +178,32 @@ class _ChoosePageState extends State<ChoosePage> {
                         Text('CLIMA', style: AppTextStyles.caption),
                         const SizedBox(height: 4),
                         Text(
-                          'Manual filter (no paid weather API).',
+                          [
+                            if (temp != null) 'Temperatura: ${temp.toStringAsFixed(0)}°C',
+                            if (weather != null) '($weather)',
+                          ].isEmpty
+                              ? 'Ubicación y clima: activa permisos para ver en vivo.'
+                              : [
+                                  if (temp != null)
+                                    'Temperatura: ${temp.toStringAsFixed(0)}°C',
+                                  if (weather != null) '($weather)',
+                                ].join(' '),
                           style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                        ),
+                        const SizedBox(height: 8),
+                        AuraSecondaryButton(
+                          label: 'Usar hora y clima actuales',
+                          onTap: () async {
+                            await _live.refresh();
+                            final t = _live.timeOfDayLabel.value;
+                            final w = _live.weatherLabel.value;
+                            c.setChooseFilter(
+                              c.chooseFilter.value.copyWith(
+                                timeOfDay: t == null ? {} : {t},
+                                weather: w == null ? {} : {w},
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 8),
                         Wrap(

@@ -11,6 +11,8 @@ import 'perfume_import_sanitize.dart';
 class PerfumeXlsxParser {
   PerfumeXlsxParser._();
 
+  static const Set<String> _inventorySheets = {'VITRINA', 'CAJON'};
+
   static List<Perfume> parseBytes(Uint8List bytes) {
     AppLog.catalog(
       'PerfumeXlsxParser.parseBytes: decoding workbook',
@@ -30,9 +32,17 @@ class PerfumeXlsxParser {
         'sheetNames': keys.join(', '),
       },
     );
-    final byKey = <String, Perfume>{};
+    final byId = <String, Perfume>{};
 
     for (final sheetName in keys) {
+      final normalized = sheetName.trim().toUpperCase();
+      if (!_inventorySheets.contains(normalized)) {
+        AppLog.catalog(
+          'PerfumeXlsxParser: skipping non-inventory sheet',
+          {'sheet': sheetName},
+        );
+        continue;
+      }
       final sheet = excel.tables[sheetName];
       if (sheet == null || sheet.rows.isEmpty) continue;
       final headerRow = sheet.rows.first;
@@ -41,29 +51,56 @@ class PerfumeXlsxParser {
       if (!_has(header, 'marca') && !_has(header, 'brand')) continue;
 
       final full = _isVitrinaStyle(header);
+      var accepted = 0;
+      var rejectedEmpty = 0;
+      var rejectedSanitize = 0;
+      var rejectedDup = 0;
       for (var r = 1; r < sheet.rows.length; r++) {
         final row = sheet.rows[r];
+        final excelRow = r + 1; // 1-based Excel row number (header is row 1)
         final p = full
-            ? _fromVitrinaRow(sheetName, r, row, header)
-            : _fromMinimalRow(sheetName, r, row, header);
-        if (p == null) continue;
+            ? _fromVitrinaRow(sheetName, excelRow, row, header)
+            : _fromMinimalRow(sheetName, excelRow, row, header);
+        if (p == null) {
+          rejectedEmpty++;
+          continue;
+        }
         final sanitized = PerfumeImportSanitize.apply(p);
-        if (sanitized == null) continue;
-        final k =
-            '${sanitized.brand.toLowerCase()}|${sanitized.name.toLowerCase()}';
-        if (byKey.containsKey(k)) continue;
-        byKey[k] = sanitized;
+        if (sanitized == null) {
+          rejectedSanitize++;
+          continue;
+        }
+        final id = sanitized.id;
+        if (id.isEmpty || byId.containsKey(id)) {
+          rejectedDup++;
+          continue;
+        }
+        byId[id] = sanitized;
+        accepted++;
       }
+
+      AppLog.catalog(
+        'PerfumeXlsxParser: sheet parsed',
+        {
+          'sheet': sheetName,
+          'rowsTotal': sheet.rows.length,
+          'accepted': accepted,
+          'rejectedEmpty': rejectedEmpty,
+          'rejectedSanitize': rejectedSanitize,
+          'rejectedDup': rejectedDup,
+          'style': full ? 'vitrina' : 'minimal',
+        },
+      );
     }
 
     AppLog.catalog(
       'PerfumeXlsxParser.parseWorkbook: complete',
       {
-        'uniquePerfumeCount': byKey.length,
+        'uniquePerfumeCount': byId.length,
         'sheetCount': keys.length,
       },
     );
-    return byKey.values.toList(growable: false);
+    return byId.values.toList(growable: false);
   }
 
   static int _sheetRank(String a, String b) {
@@ -136,14 +173,14 @@ class PerfumeXlsxParser {
         .toList(growable: false);
   }
 
-  static String _stableId(String sheet, int row, String brand, String name) {
-    final h = Object.hash(sheet, row, brand, name);
-    return 'xlsx_${sheet}_${row}_$h';
+  static String _stableId(String sheet, int excelRow) {
+    final u = sheet.trim().toUpperCase();
+    return 'xlsx_${u}_row_$excelRow';
   }
 
   static Perfume? _fromVitrinaRow(
     String sheetName,
-    int rowIndex,
+    int excelRow,
     List<Data?> row,
     Map<String, int> h,
   ) {
@@ -212,7 +249,7 @@ class PerfumeXlsxParser {
     }
 
     return Perfume(
-      id: _stableId(sheetName, rowIndex, brand, name),
+      id: _stableId(sheetName, excelRow),
       brand: brand,
       name: name,
       rating: rating,
@@ -247,7 +284,7 @@ class PerfumeXlsxParser {
 
   static Perfume? _fromMinimalRow(
     String sheetName,
-    int rowIndex,
+    int excelRow,
     List<Data?> row,
     Map<String, int> h,
   ) {
@@ -272,7 +309,7 @@ class PerfumeXlsxParser {
     }
 
     return Perfume(
-      id: _stableId(sheetName, rowIndex, brand, name),
+      id: _stableId(sheetName, excelRow),
       brand: brand,
       name: name,
       rating: rating,

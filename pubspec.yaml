@@ -50,6 +50,9 @@ dependencies:
   path: ^1.9.1
   scrollable_positioned_list: ^0.3.8
   linkify: ^5.0.0
+  http: ^1.5.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +65,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  image: ^4.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -73,6 +77,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/pngs/app logo.PNG
 
   # No bundled app assets (catalog + images come from user import / device).
   # Add an `assets:` list here only if you ship images/fonts again.
@@ -103,10 +110,9 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# Launcher icon source: existing Android foreground (no `assets/` folder required).
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png
-  adaptive_icon_background: "#00000000"
-  adaptive_icon_foreground: android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png
+  image_path: "assets/pngs/app logo.PNG"
+  adaptive_icon_background: "assets/pngs/app logo.PNG"
+  adaptive_icon_foreground: "assets/pngs/app logo.PNG"

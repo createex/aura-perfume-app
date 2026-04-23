@@ -192,35 +192,58 @@ class InventoryImportController extends GetxController {
         var dupInFile = 0;
         var updated = 0;
         var added = 0;
-        final seenInFile = <String>{};
+        final seenIds = <String>{};
 
         final out = List<Perfume>.from(existing);
+        final idToIndex = <String, int>{};
         final keyToIndex = <String, int>{};
         for (var i = 0; i < out.length; i++) {
-          final k = _keyOf(out[i].brand, out[i].name);
-          if (k.isNotEmpty) keyToIndex[k] = i;
+          final p = out[i];
+          final id = p.id.trim();
+          if (id.isNotEmpty) idToIndex[id] = i;
+
+          final k = _keyOf(p.brand, p.name);
+          if (k.isNotEmpty) {
+            // Prefer the first occurrence for legacy catalogs.
+            keyToIndex.putIfAbsent(k, () => i);
+          }
         }
 
         for (var i = 0; i < parsed.length; i++) {
           final incoming = parsed[i];
-          final k = _keyOf(incoming.brand, incoming.name);
-          if (k.isEmpty) continue;
-          if (seenInFile.contains(k)) {
+          final id = incoming.id.trim();
+          if (id.isEmpty) continue;
+          if (seenIds.contains(id)) {
             dupInFile++;
             continue;
           }
-          seenInFile.add(k);
+          seenIds.add(id);
           progress.value = totalFound == 0 ? 1 : (i + 1) / totalFound;
 
-          final idx = keyToIndex[k];
-          if (idx != null) {
-            out[idx] = _mergeVitrinaRow(out[idx], incoming);
+          final k = _keyOf(incoming.brand, incoming.name);
+          final byId = idToIndex[id];
+          if (byId != null) {
+            out[byId] = _mergeVitrinaRow(out[byId], incoming);
             updated++;
-          } else {
-            out.add(incoming);
-            keyToIndex[k] = out.length - 1;
-            added++;
+            continue;
           }
+
+          // Back-compat: older imports used non-row ids keyed by brand+name.
+          if (k.isNotEmpty) {
+            final legacyIdx = keyToIndex[k];
+            if (legacyIdx != null) {
+              out[legacyIdx] = _mergeVitrinaRow(out[legacyIdx], incoming);
+              idToIndex[id] = legacyIdx;
+              updated++;
+              continue;
+            }
+          }
+
+          out.add(incoming);
+          final idx = out.length - 1;
+          idToIndex[id] = idx;
+          if (k.isNotEmpty) keyToIndex[k] = idx;
+          added++;
         }
 
         status.value = 'Guardando en base de datos…';
@@ -289,18 +312,24 @@ class InventoryImportController extends GetxController {
       var dupInFile = 0;
       var updated = 0;
       var added = 0;
-      final seenInFile = <String>{};
+      final seenIds = <String>{};
 
       final out = List<Perfume>.from(existing);
+      final idToIndex = <String, int>{};
       final keyToIndex = <String, int>{};
       for (var i = 0; i < out.length; i++) {
-        final k = _keyOf(out[i].brand, out[i].name);
-        if (k.isNotEmpty) keyToIndex[k] = i;
+        final p = out[i];
+        final id = p.id.trim();
+        if (id.isNotEmpty) idToIndex[id] = i;
+
+        final k = _keyOf(p.brand, p.name);
+        if (k.isNotEmpty) keyToIndex.putIfAbsent(k, () => i);
       }
 
       var rowIdx = 0;
       for (int r = 1; r < sheet.rows.length; r++) {
         final row = sheet.rows[r];
+        final excelRow = r + 1;
         final brand = _cell(row, idxBrand);
         final name = _cell(row, idxName);
         if (brand.isEmpty || name.isEmpty) continue;
@@ -312,18 +341,18 @@ class InventoryImportController extends GetxController {
 
         final k = _keyOf(brand, name);
         if (k.isEmpty) continue;
-        if (seenInFile.contains(k)) {
+
+        final id = _xlsxRowId(sheetName, excelRow);
+        if (seenIds.contains(id)) {
           dupInFile++;
           continue;
         }
-        seenInFile.add(k);
+        seenIds.add(id);
         rowIdx++;
         progress.value = total == 0 ? 1 : rowIdx / total;
 
         final raw = Perfume(
-          id: '${brand.toLowerCase()}-${name.toLowerCase()}'
-              .replaceAll(' ', '-')
-              .replaceAll(RegExp(r'[^a-z0-9\-]'), ''),
+          id: id,
           brand: brand,
           name: name,
           rating: PerfumeImportSanitize.clampRating0to10(rating),
@@ -332,15 +361,28 @@ class InventoryImportController extends GetxController {
         final incoming = PerfumeImportSanitize.apply(raw);
         if (incoming == null) continue;
 
-        final idx = keyToIndex[k];
-        if (idx != null) {
-          out[idx] = _mergeMinimalRow(out[idx], incoming);
+        final byId = idToIndex[id];
+        if (byId != null) {
+          out[byId] = _mergeMinimalRow(out[byId], incoming);
           updated++;
-        } else {
-          out.add(incoming);
-          keyToIndex[k] = out.length - 1;
-          added++;
+          continue;
         }
+
+        if (k.isNotEmpty) {
+          final legacyIdx = keyToIndex[k];
+          if (legacyIdx != null) {
+            out[legacyIdx] = _mergeMinimalRow(out[legacyIdx], incoming);
+            idToIndex[id] = legacyIdx;
+            updated++;
+            continue;
+          }
+        }
+
+        out.add(incoming);
+        final idx = out.length - 1;
+        idToIndex[id] = idx;
+        if (k.isNotEmpty) keyToIndex[k] = idx;
+        added++;
       }
 
       status.value = 'Guardando en base de datos…';
@@ -402,6 +444,11 @@ class InventoryImportController extends GetxController {
     final n = name.trim().toLowerCase();
     if (b.isEmpty || n.isEmpty) return '';
     return '$b|$n';
+  }
+
+  static String _xlsxRowId(String sheetName, int excelRow) {
+    final u = sheetName.trim().toUpperCase();
+    return 'xlsx_${u}_row_$excelRow';
   }
 
   static String? _preferIncomingImage(String? oldPath, String? incoming) {
