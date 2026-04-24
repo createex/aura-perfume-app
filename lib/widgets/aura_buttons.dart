@@ -73,23 +73,29 @@ class AuraSecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final bool expanded;
+  final double height;
+  final EdgeInsetsGeometry padding;
+  final TextStyle? textStyle;
 
   const AuraSecondaryButton({
     super.key,
     required this.label,
     this.onTap,
     this.expanded = true,
+    this.height = 52,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+    this.textStyle,
   });
 
   @override
   Widget build(BuildContext context) {
     final child = SizedBox(
-      height: 52,
+      height: height,
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: AppColors.border),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          padding: padding,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(26),
           ),
@@ -99,7 +105,7 @@ class AuraSecondaryButton extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             label.toUpperCase(),
-            style: AppTextStyles.buttonSecondary,
+            style: textStyle ?? AppTextStyles.buttonSecondary,
             maxLines: 1,
             textAlign: TextAlign.center,
           ),

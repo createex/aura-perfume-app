@@ -137,15 +137,54 @@ class _ChoosePageState extends State<ChoosePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('HORARIO', style: AppTextStyles.caption),
-                        const SizedBox(height: 4),
-                        Text(
-                          [
-                            'Ahora: $hh:$mm',
-                            if (timeOfDay != null) '($timeOfDay)',
-                            if (city != null && city.trim().isNotEmpty) city.trim(),
-                          ].join(' • '),
-                          style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('HORARIO', style: AppTextStyles.caption),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    [
+                                      'Ahora: $hh:$mm',
+                                      if (timeOfDay != null) '($timeOfDay)',
+                                      if (city != null && city.trim().isNotEmpty)
+                                        city.trim(),
+                                    ].join(' • '),
+                                    style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            AuraSecondaryButton(
+                              expanded: false,
+                              height: 32,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              textStyle: AppTextStyles.buttonSecondary.copyWith(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                              ),
+                              label: 'Usar hora y clima actuales',
+                              onTap: () async {
+                                await _live.refresh();
+                                final t = _live.timeOfDayLabel.value;
+                                final w = _live.weatherLabel.value;
+                                c.setChooseFilter(
+                                  c.chooseFilter.value.copyWith(
+                                    timeOfDay: t == null ? {} : {t},
+                                    weather: w == null ? {} : {w},
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Wrap(
@@ -189,21 +228,6 @@ class _ChoosePageState extends State<ChoosePage> {
                                   if (weather != null) '($weather)',
                                 ].join(' '),
                           style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
-                        ),
-                        const SizedBox(height: 8),
-                        AuraSecondaryButton(
-                          label: 'Usar hora y clima actuales',
-                          onTap: () async {
-                            await _live.refresh();
-                            final t = _live.timeOfDayLabel.value;
-                            final w = _live.weatherLabel.value;
-                            c.setChooseFilter(
-                              c.chooseFilter.value.copyWith(
-                                timeOfDay: t == null ? {} : {t},
-                                weather: w == null ? {} : {w},
-                              ),
-                            );
-                          },
                         ),
                         const SizedBox(height: 8),
                         Wrap(
